@@ -11,37 +11,15 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
 import {
-  HiHome,
-  HiDocumentChartBar,
-  HiCurrencyDollar,
-  HiChatBubbleLeftRight,
-  HiPlus,
-  HiPencilSquare,
-  HiTrash,
-  HiArrowTrendingUp,
-  HiArrowTrendingDown,
-  HiExclamationTriangle,
-  HiCheckCircle,
-  HiLightBulb,
-  HiPaperAirplane,
-  HiShoppingCart,
-  HiTruck,
-  HiHeart,
-  HiFilm,
-  HiEllipsisHorizontalCircle,
-  HiCalendarDays,
-  HiChartPie,
-  HiXMark,
-  HiCheck,
-  HiArrowPath,
-  HiBanknotes,
-  HiSparkles,
-  HiInformationCircle,
-  HiWallet,
-  HiMinus,
+  HiHome, HiDocumentChartBar, HiCurrencyDollar, HiPlus, HiPencilSquare, HiTrash,
+  HiArrowTrendingUp, HiArrowTrendingDown, HiExclamationTriangle, HiCheckCircle,
+  HiLightBulb, HiShoppingCart, HiTruck, HiHeart, HiFilm,
+  HiEllipsisHorizontalCircle, HiCalendarDays, HiChartPie, HiXMark, HiCheck,
+  HiArrowPath, HiBanknotes, HiSparkles, HiInformationCircle, HiWallet, HiMinus,
+  HiCog6Tooth, HiUserGroup, HiArrowUturnLeft, HiArrowUturnRight, HiTag
 } from 'react-icons/hi2'
 import { RiHomeSmileLine, RiRestaurantLine, RiWallet3Line } from 'react-icons/ri'
 
@@ -49,11 +27,13 @@ import { RiHomeSmileLine, RiRestaurantLine, RiWallet3Line } from 'react-icons/ri
 const AGENT_ID = '69a04fd17549c200e00d2fb9'
 const STORAGE_EXPENSES = 'expensetrack_expenses'
 const STORAGE_BUDGETS = 'expensetrack_budgets'
-const STORAGE_BALANCE = 'expensetrack_balance'
 const STORAGE_TOPUPS = 'expensetrack_topups'
+const STORAGE_CATEGORIES = 'expensetrack_categories'
+const STORAGE_TOPUP_PRESETS = 'expensetrack_topup_presets'
+const STORAGE_BORROWS = 'expensetrack_borrows'
 
-const CATEGORIES = ['Food', 'Household', 'Travel', 'Entertainment', 'Health', 'Other'] as const
-type Category = (typeof CATEGORIES)[number]
+const DEFAULT_CATEGORIES = ['Food', 'Household', 'Travel', 'Entertainment', 'Health', 'Other']
+const DEFAULT_TOPUP_PRESETS = ['Salary', 'Freelance', 'Gift', 'Refund', 'Other']
 
 // ============ INTERFACES ============
 interface Expense {
@@ -68,6 +48,26 @@ interface Expense {
 interface BudgetItem {
   category: string
   limit: number
+}
+
+interface TopUp {
+  id: string
+  amount: number
+  note: string
+  date: string
+  createdAt: string
+}
+
+interface BorrowRecord {
+  id: string
+  type: 'borrowed' | 'lent'
+  personName: string
+  amount: number
+  note: string
+  date: string
+  createdAt: string
+  status: 'pending' | 'settled'
+  settledDate?: string
 }
 
 interface CategoryBreakdown {
@@ -115,21 +115,6 @@ interface AgentReport {
   chat_answer: string
 }
 
-interface ChatMessage {
-  role: 'user' | 'agent'
-  content: string
-  data?: AgentReport | null
-  timestamp: string
-}
-
-interface TopUp {
-  id: string
-  amount: number
-  note: string
-  date: string
-  createdAt: string
-}
-
 // ============ SAMPLE DATA ============
 function makeSampleExpenses(): Expense[] {
   const today = new Date().toISOString().split('T')[0]
@@ -165,6 +150,18 @@ function makeSampleTopups(): TopUp[] {
   ]
 }
 
+function makeSampleBorrows(): BorrowRecord[] {
+  const today = new Date().toISOString().split('T')[0]
+  const twoDaysAgo = new Date(Date.now() - 172800000).toISOString().split('T')[0]
+  const fiveDaysAgo = new Date(Date.now() - 5 * 86400000).toISOString().split('T')[0]
+  return [
+    { id: 'sb1', type: 'borrowed', personName: 'Alex', amount: 200, note: 'Dinner split', date: today, createdAt: new Date().toISOString(), status: 'pending' },
+    { id: 'sb2', type: 'lent', personName: 'Sam', amount: 150, note: 'Movie tickets', date: today, createdAt: new Date().toISOString(), status: 'pending' },
+    { id: 'sb3', type: 'borrowed', personName: 'Jordan', amount: 50, note: 'Coffee', date: fiveDaysAgo, createdAt: new Date(Date.now() - 5 * 86400000).toISOString(), status: 'settled', settledDate: twoDaysAgo },
+    { id: 'sb4', type: 'lent', personName: 'Taylor', amount: 300, note: 'Emergency loan', date: twoDaysAgo, createdAt: new Date(Date.now() - 172800000).toISOString(), status: 'pending' },
+  ]
+}
+
 // ============ HELPERS ============
 function getCategoryIcon(category: string) {
   switch (category) {
@@ -173,30 +170,51 @@ function getCategoryIcon(category: string) {
     case 'Travel': return <HiTruck className="w-4 h-4" />
     case 'Entertainment': return <HiFilm className="w-4 h-4" />
     case 'Health': return <HiHeart className="w-4 h-4" />
+    case 'Shopping': return <HiShoppingCart className="w-4 h-4" />
     default: return <HiEllipsisHorizontalCircle className="w-4 h-4" />
   }
 }
 
-function getCategoryColor(category: string) {
-  switch (category) {
-    case 'Food': return 'bg-orange-100 text-orange-700 border-orange-200'
-    case 'Household': return 'bg-blue-100 text-blue-700 border-blue-200'
-    case 'Travel': return 'bg-purple-100 text-purple-700 border-purple-200'
-    case 'Entertainment': return 'bg-pink-100 text-pink-700 border-pink-200'
-    case 'Health': return 'bg-red-100 text-red-700 border-red-200'
-    default: return 'bg-gray-100 text-gray-700 border-gray-200'
-  }
+const CATEGORY_COLORS: Record<string, { normal: string; selected: string }> = {
+  Food: { normal: 'bg-orange-100 text-orange-700 border-orange-200', selected: 'bg-orange-500 text-white border-orange-600' },
+  Household: { normal: 'bg-blue-100 text-blue-700 border-blue-200', selected: 'bg-blue-500 text-white border-blue-600' },
+  Travel: { normal: 'bg-purple-100 text-purple-700 border-purple-200', selected: 'bg-purple-500 text-white border-purple-600' },
+  Entertainment: { normal: 'bg-pink-100 text-pink-700 border-pink-200', selected: 'bg-pink-500 text-white border-pink-600' },
+  Health: { normal: 'bg-red-100 text-red-700 border-red-200', selected: 'bg-red-500 text-white border-red-600' },
+  Shopping: { normal: 'bg-amber-100 text-amber-700 border-amber-200', selected: 'bg-amber-500 text-white border-amber-600' },
 }
 
-function getCategoryBadgeSelected(category: string) {
-  switch (category) {
-    case 'Food': return 'bg-orange-500 text-white border-orange-600'
-    case 'Household': return 'bg-blue-500 text-white border-blue-600'
-    case 'Travel': return 'bg-purple-500 text-white border-purple-600'
-    case 'Entertainment': return 'bg-pink-500 text-white border-pink-600'
-    case 'Health': return 'bg-red-500 text-white border-red-600'
-    default: return 'bg-gray-500 text-white border-gray-600'
+const EXTRA_COLORS = [
+  { normal: 'bg-cyan-100 text-cyan-700 border-cyan-200', selected: 'bg-cyan-500 text-white border-cyan-600' },
+  { normal: 'bg-lime-100 text-lime-700 border-lime-200', selected: 'bg-lime-500 text-white border-lime-600' },
+  { normal: 'bg-violet-100 text-violet-700 border-violet-200', selected: 'bg-violet-500 text-white border-violet-600' },
+  { normal: 'bg-rose-100 text-rose-700 border-rose-200', selected: 'bg-rose-500 text-white border-rose-600' },
+  { normal: 'bg-teal-100 text-teal-700 border-teal-200', selected: 'bg-teal-500 text-white border-teal-600' },
+  { normal: 'bg-indigo-100 text-indigo-700 border-indigo-200', selected: 'bg-indigo-500 text-white border-indigo-600' },
+  { normal: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200', selected: 'bg-fuchsia-500 text-white border-fuchsia-600' },
+  { normal: 'bg-emerald-100 text-emerald-700 border-emerald-200', selected: 'bg-emerald-500 text-white border-emerald-600' },
+  { normal: 'bg-sky-100 text-sky-700 border-sky-200', selected: 'bg-sky-500 text-white border-sky-600' },
+]
+
+function getCategoryColor(category: string): string {
+  const known = CATEGORY_COLORS[category]
+  if (known) return known.normal
+  // For custom categories, hash the name to pick a stable color
+  let hash = 0
+  for (let i = 0; i < category.length; i++) {
+    hash = (hash * 31 + category.charCodeAt(i)) % EXTRA_COLORS.length
   }
+  return EXTRA_COLORS[Math.abs(hash)]?.normal ?? 'bg-gray-100 text-gray-700 border-gray-200'
+}
+
+function getCategoryBadgeSelected(category: string): string {
+  const known = CATEGORY_COLORS[category]
+  if (known) return known.selected
+  let hash = 0
+  for (let i = 0; i < category.length; i++) {
+    hash = (hash * 31 + category.charCodeAt(i)) % EXTRA_COLORS.length
+  }
+  return EXTRA_COLORS[Math.abs(hash)]?.selected ?? 'bg-gray-500 text-white border-gray-600'
 }
 
 function genId() {
@@ -271,21 +289,34 @@ class ErrorBoundary extends React.Component<
 }
 
 // ============ NAV ITEMS ============
-type Screen = 'dashboard' | 'reports' | 'budgets' | 'insights'
+type Screen = 'dashboard' | 'reports' | 'budgets' | 'borrowing'
 
-const NAV_ITEMS: { id: Screen; label: string; iconActive: React.ReactNode; iconInactive: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'Home', iconActive: <HiHome className="w-6 h-6" />, iconInactive: <HiHome className="w-6 h-6" /> },
-  { id: 'reports', label: 'Reports', iconActive: <HiDocumentChartBar className="w-6 h-6" />, iconInactive: <HiDocumentChartBar className="w-6 h-6" /> },
-  { id: 'budgets', label: 'Budgets', iconActive: <HiCurrencyDollar className="w-6 h-6" />, iconInactive: <HiCurrencyDollar className="w-6 h-6" /> },
-  { id: 'insights', label: 'Chat', iconActive: <HiChatBubbleLeftRight className="w-6 h-6" />, iconInactive: <HiChatBubbleLeftRight className="w-6 h-6" /> },
+const NAV_ITEMS: { id: Screen; label: string; icon: React.ReactNode }[] = [
+  { id: 'dashboard', label: 'Home', icon: <HiHome className="w-6 h-6" /> },
+  { id: 'reports', label: 'Reports', icon: <HiDocumentChartBar className="w-6 h-6" /> },
+  { id: 'budgets', label: 'Budgets', icon: <HiCurrencyDollar className="w-6 h-6" /> },
+  { id: 'borrowing', label: 'Borrowing', icon: <HiUserGroup className="w-6 h-6" /> },
 ]
+
+// ============ STAT CARD ============
+function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+  return (
+    <Card className="border-0 shadow-md rounded-2xl">
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">{icon}</div>
+        <div className="min-w-0">
+          <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
+          <p className="text-lg font-semibold text-foreground truncate">{value}</p>
+          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 // ============ BALANCE CARD ============
 function BalanceCard({
-  totalTopUps,
-  totalSpent,
-  topUps,
-  onTopUp,
+  totalTopUps, totalSpent, topUps, onTopUp,
 }: {
   totalTopUps: number
   totalSpent: number
@@ -372,7 +403,6 @@ function BalanceCard({
         </CardContent>
       </Card>
 
-      {/* Top-up history toggle */}
       {topUps.length > 0 && (
         <button
           onClick={() => setShowHistory(!showHistory)}
@@ -385,7 +415,6 @@ function BalanceCard({
         </button>
       )}
 
-      {/* Top-up history list */}
       {showHistory && topUps.length > 0 && (
         <Card className="border-0 shadow-md rounded-2xl">
           <CardContent className="p-3">
@@ -412,33 +441,17 @@ function BalanceCard({
   )
 }
 
-// ============ STAT CARD ============
-function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
-  return (
-    <Card className="border-0 shadow-md rounded-2xl">
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">{icon}</div>
-        <div className="min-w-0">
-          <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
-          <p className="text-lg font-semibold text-foreground truncate">{value}</p>
-          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // ============ DASHBOARD SCREEN ============
 function DashboardScreen({
-  expenses, setExpenses, budgets, sampleMode, totalTopUps, topUps, onTopUp
+  expenses, setExpenses, totalTopUps, topUps, onTopUp, categories, onOpenSettings
 }: {
   expenses: Expense[]
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>
-  budgets: BudgetItem[]
-  sampleMode: boolean
   totalTopUps: number
   topUps: TopUp[]
   onTopUp: () => void
+  categories: string[]
+  onOpenSettings: () => void
 }) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<string>('')
@@ -539,7 +552,7 @@ function DashboardScreen({
               </p>
             )}
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map(cat => (
+              {categories.map(cat => (
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
@@ -657,7 +670,7 @@ function DashboardScreen({
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             <div className="w-2 h-2 rounded-full bg-muted-foreground/30 shrink-0" />
-            <p className="text-xs text-foreground">Expense Insights Agent - Ready</p>
+            <p className="text-xs text-foreground">Expense Insights Agent - Available in Reports</p>
           </div>
         </CardContent>
       </Card>
@@ -667,13 +680,14 @@ function DashboardScreen({
 
 // ============ REPORTS SCREEN ============
 function ReportsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId, totalTopUps
+  expenses, budgets, activeAgentId, setActiveAgentId, totalTopUps, categories
 }: {
   expenses: Expense[]
   budgets: BudgetItem[]
   activeAgentId: string | null
   setActiveAgentId: (id: string | null) => void
   totalTopUps: number
+  categories: string[]
 }) {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
   const [report, setReport] = useState<AgentReport | null>(null)
@@ -721,6 +735,8 @@ ${expenseLines}
 BUDGETS:
 ${budgetLines}${balanceContext}
 
+CATEGORIES: ${categories.join(', ')}
+
 PERIOD: ${period} for ${range.start} to ${range.end}
 
 REQUEST: Generate a ${period} spending report with category breakdown, trends, budget alerts, and insights.`
@@ -765,6 +781,12 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
             {loading ? <HiArrowPath className="w-4 h-4 mr-2 animate-spin" /> : <HiSparkles className="w-4 h-4 mr-2" />}
             Generate Report
           </Button>
+          {activeAgentId === AGENT_ID && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>Expense Insights Agent is analyzing...</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -981,7 +1003,7 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
             <Card className="border-0 shadow-md rounded-2xl">
               <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <HiChatBubbleLeftRight className="w-4 h-4 text-primary" /> Analysis
+                  <HiSparkles className="w-4 h-4 text-primary" /> Analysis
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
@@ -997,11 +1019,12 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
 // ============ BUDGETS SCREEN ============
 function BudgetsScreen({
-  budgets, setBudgets, expenses
+  budgets, setBudgets, expenses, categories
 }: {
   budgets: BudgetItem[]
   setBudgets: React.Dispatch<React.SetStateAction<BudgetItem[]>>
   expenses: Expense[]
+  categories: string[]
 }) {
   const [localBudgets, setLocalBudgets] = useState<BudgetItem[]>(budgets)
   const [saved, setSaved] = useState(false)
@@ -1106,196 +1129,490 @@ function BudgetsScreen({
   )
 }
 
-// ============ INSIGHTS CHAT SCREEN ============
-function InsightsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId, totalTopUps
+// ============ BORROWING SCREEN ============
+function BorrowingScreen({
+  borrows, setBorrows,
 }: {
-  expenses: Expense[]
-  budgets: BudgetItem[]
-  activeAgentId: string | null
-  setActiveAgentId: (id: string | null) => void
-  totalTopUps: number
+  borrows: BorrowRecord[]
+  setBorrows: React.Dispatch<React.SetStateAction<BorrowRecord[]>>
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const [filter, setFilter] = useState<'borrowed' | 'lent'>('borrowed')
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [newType, setNewType] = useState<'borrowed' | 'lent'>('borrowed')
+  const [newPerson, setNewPerson] = useState('')
+  const [newAmount, setNewAmount] = useState('')
+  const [newNote, setNewNote] = useState('')
+  const [newDate, setNewDate] = useState(getToday())
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const currentBalance = totalTopUps - allTimeTotal
+  const pendingBorrowed = borrows.filter(b => b.type === 'borrowed' && b.status === 'pending')
+  const pendingLent = borrows.filter(b => b.type === 'lent' && b.status === 'pending')
+  const totalIOwe = pendingBorrowed.reduce((sum, b) => sum + b.amount, 0)
+  const totalOwedToMe = pendingLent.reduce((sum, b) => sum + b.amount, 0)
+  const netBalance = totalOwedToMe - totalIOwe
 
-  const quickQuestions = [
-    "This week's summary",
-    'Biggest expense',
-    'Food vs Travel',
-    'Budget check',
-  ]
+  const filteredRecords = borrows.filter(b => b.type === filter)
+    .sort((a, b) => {
+      if (a.status === 'pending' && b.status === 'settled') return -1
+      if (a.status === 'settled' && b.status === 'pending') return 1
+      return new Date(b.date).getTime() - new Date(a.date).getTime()
+    })
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  const handleAdd = () => {
+    const parsed = parseFloat(newAmount)
+    if (!newPerson.trim() || isNaN(parsed) || parsed <= 0) return
+    const record: BorrowRecord = {
+      id: genId(),
+      type: newType,
+      personName: newPerson.trim(),
+      amount: parsed,
+      note: newNote.trim(),
+      date: newDate || getToday(),
+      createdAt: new Date().toISOString(),
+      status: 'pending',
     }
-  }, [messages, loading])
+    setBorrows(prev => [record, ...prev])
+    setShowAddDialog(false)
+    setNewPerson('')
+    setNewAmount('')
+    setNewNote('')
+    setNewDate(getToday())
+  }
 
-  const buildContext = useCallback(() => {
-    const expenseLines = expenses.length > 0
-      ? expenses.slice(0, 100).map(e => `  - ${e.date} | ${e.category} | $${e.amount.toFixed(2)} | ${e.note || 'No note'}`).join('\n')
-      : '  No expenses recorded.'
-    const budgetLines = budgets.map(b => `  - ${b.category}: $${b.limit} limit`).join('\n')
-    const balanceInfo = totalTopUps > 0
-      ? `\n\nBALANCE: Total top-ups $${totalTopUps.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
-      : ''
-    return `EXPENSES:\n${expenseLines}\n\nBUDGETS:\n${budgetLines}${balanceInfo}`
-  }, [expenses, budgets, totalTopUps, currentBalance, allTimeTotal])
+  const handleSettle = (id: string) => {
+    setBorrows(prev => prev.map(b =>
+      b.id === id ? { ...b, status: 'settled' as const, settledDate: getToday() } : b
+    ))
+  }
 
-  const handleSend = async (text?: string) => {
-    const msg = (text ?? input).trim()
-    if (!msg || loading) return
-
-    const userMsg: ChatMessage = { role: 'user', content: msg, timestamp: new Date().toISOString() }
-    setMessages(prev => [...prev, userMsg])
-    setInput('')
-    setLoading(true)
-    setActiveAgentId(AGENT_ID)
-
-    const context = buildContext()
-    const fullMessage = `Here is my expense data for context:\n\n${context}\n\nMy question: ${msg}`
-
-    try {
-      const result = await callAIAgent(fullMessage, AGENT_ID)
-      if (result.success && result?.response?.status === 'success') {
-        let data = result.response.result as unknown
-        if (typeof data === 'string') {
-          try { data = JSON.parse(data) } catch { /* keep string */ }
-        }
-        const agentData = data as AgentReport
-        const answerText = agentData?.chat_answer ?? agentData?.summary ?? (typeof data === 'string' ? (data as string) : 'Analysis complete. See the details below.')
-        const agentMsg: ChatMessage = { role: 'agent', content: answerText, data: typeof data === 'object' ? agentData : null, timestamp: new Date().toISOString() }
-        setMessages(prev => [...prev, agentMsg])
-      } else {
-        const errMsg: ChatMessage = { role: 'agent', content: result?.error ?? 'Sorry, I could not process your question. Please try again.', timestamp: new Date().toISOString() }
-        setMessages(prev => [...prev, errMsg])
-      }
-    } catch {
-      const errMsg: ChatMessage = { role: 'agent', content: 'Network error. Please try again.', timestamp: new Date().toISOString() }
-      setMessages(prev => [...prev, errMsg])
-    }
-
-    setLoading(false)
-    setActiveAgentId(null)
+  const handleDelete = (id: string) => {
+    setBorrows(prev => prev.filter(b => b.id !== id))
+    setConfirmDeleteId(null)
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-130px)] px-4 pt-4">
-      {/* Chat Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-3 min-h-0">
-        {messages.length === 0 && (
-          <div className="text-center py-12">
-            <HiChatBubbleLeftRight className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground font-medium">Ask about your spending</p>
-            <p className="text-xs text-muted-foreground mt-1">AI-powered expense insights</p>
-          </div>
-        )}
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl p-3.5 ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border border-border shadow-md rounded-bl-md'}`}>
-              <div className={`text-sm ${msg.role === 'user' ? '' : 'text-foreground'}`}>
-                {renderMarkdown(msg.content)}
+    <div className="space-y-4 px-4 pt-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="border-0 shadow-md rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-red-50" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
+                <HiArrowUturnLeft className="w-4 h-4 text-red-600" />
               </div>
-              {msg.role === 'agent' && msg.data && (
-                <div className="mt-3 space-y-2">
-                  {(msg.data?.total_spent ?? 0) > 0 && (
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-primary/5">
-                      <HiBanknotes className="w-4 h-4 text-primary" />
-                      <span className="text-xs">Total: <strong className="font-semibold">{formatCurrency(msg.data.total_spent)}</strong></span>
-                    </div>
-                  )}
-                  {Array.isArray(msg.data?.category_breakdown) && msg.data.category_breakdown.length > 0 && (
-                    <div className="space-y-1">
-                      {msg.data.category_breakdown.slice(0, 4).map((cat, ci) => (
-                        <div key={ci} className="flex items-center justify-between text-xs p-2 rounded-xl bg-secondary/50">
-                          <span className="flex items-center gap-1.5">
-                            {getCategoryIcon(cat?.category ?? '')} {cat?.category}
-                          </span>
-                          <span className="font-medium">{formatCurrency(cat?.total ?? 0)} ({(cat?.percentage ?? 0).toFixed(0)}%)</span>
+              <p className="text-[11px] text-red-600 font-medium">I Owe</p>
+            </div>
+            <p className="text-xl font-bold text-red-700">{formatCurrency(totalIOwe)}</p>
+            <p className="text-[10px] text-red-500 mt-0.5">{pendingBorrowed.length} pending</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-md rounded-2xl overflow-hidden">
+          <div className="absolute inset-0 bg-emerald-50" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center">
+                <HiArrowUturnRight className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-[11px] text-emerald-600 font-medium">Owed to Me</p>
+            </div>
+            <p className="text-xl font-bold text-emerald-700">{formatCurrency(totalOwedToMe)}</p>
+            <p className="text-[10px] text-emerald-500 mt-0.5">{pendingLent.length} pending</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filter Tabs + Add Button */}
+      <div className="flex items-center gap-3">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as 'borrowed' | 'lent')} className="flex-1">
+          <TabsList className="grid grid-cols-2 w-full rounded-xl">
+            <TabsTrigger value="borrowed" className="text-xs rounded-xl">Borrowed</TabsTrigger>
+            <TabsTrigger value="lent" className="text-xs rounded-xl">Lent</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Button
+          onClick={() => { setNewType(filter); setShowAddDialog(true) }}
+          className="h-10 w-10 rounded-xl bg-primary text-primary-foreground active:scale-90 transition-transform p-0 shrink-0"
+        >
+          <HiPlus className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Records List */}
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardContent className="p-4">
+          {filteredRecords.length === 0 ? (
+            <div className="text-center py-8">
+              <HiUserGroup className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">No records yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Track money you have {filter === 'borrowed' ? 'borrowed' : 'lent'}</p>
+            </div>
+          ) : (
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2">
+                {filteredRecords.map(record => (
+                  <div
+                    key={record.id}
+                    className={`p-3 rounded-xl transition-colors ${record.status === 'settled' ? 'bg-secondary/30 opacity-70' : 'bg-secondary/50'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${record.type === 'borrowed' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        {record.type === 'borrowed' ? <HiArrowUturnLeft className="w-4 h-4" /> : <HiArrowUturnRight className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{record.personName}</p>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 rounded-lg shrink-0 ${record.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-300' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}
+                          >
+                            {record.status === 'pending' ? 'Pending' : 'Settled'}
+                          </Badge>
                         </div>
-                      ))}
+                        <p className="text-[11px] text-muted-foreground">
+                          {record.date}{record.note ? ` - ${record.note}` : ''}
+                        </p>
+                        {record.status === 'settled' && record.settledDate && (
+                          <p className="text-[10px] text-emerald-600">Settled on {record.settledDate}</p>
+                        )}
+                      </div>
+                      <p className={`text-sm font-semibold shrink-0 ${record.type === 'borrowed' ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {formatCurrency(record.amount)}
+                      </p>
                     </div>
-                  )}
-                  {Array.isArray(msg.data?.budget_alerts) && msg.data.budget_alerts.length > 0 && (
-                    <div className="space-y-1 mt-1">
-                      {msg.data.budget_alerts.slice(0, 2).map((ba, bi) => (
-                        <div key={bi} className="text-xs flex items-start gap-1.5 p-2 rounded-xl bg-yellow-50">
-                          <HiExclamationTriangle className="w-3.5 h-3.5 text-yellow-500 mt-0.5 shrink-0" />
-                          <span>{ba?.message ?? ''}</span>
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-1 mt-2">
+                      {record.status === 'pending' && (
+                        <button
+                          onClick={() => handleSettle(record.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-[11px] font-medium active:scale-95 transition-transform min-h-[32px]"
+                        >
+                          <HiCheckCircle className="w-3.5 h-3.5" /> Settle
+                        </button>
+                      )}
+                      {confirmDeleteId === record.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(record.id)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-red-600 text-[11px] font-medium active:scale-95 transition-transform min-h-[32px]"
+                          >
+                            <HiCheck className="w-3.5 h-3.5" /> Yes
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-[11px] font-medium active:scale-95 transition-transform min-h-[32px]"
+                          >
+                            <HiXMark className="w-3.5 h-3.5" /> No
+                          </button>
                         </div>
-                      ))}
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(record.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-red-500 text-[11px] font-medium active:scale-95 transition-transform min-h-[32px]"
+                        >
+                          <HiTrash className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {Array.isArray(msg.data?.insights) && msg.data.insights.length > 0 && (
-                    <div className="space-y-1 mt-1">
-                      {msg.data.insights.slice(0, 2).map((ins, ii) => (
-                        <div key={ii} className="text-xs flex items-start gap-1.5 text-muted-foreground">
-                          <HiLightBulb className="w-3.5 h-3.5 text-yellow-500 mt-0.5 shrink-0" />
-                          <span>{ins?.text ?? ''}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <p className={`text-[10px] mt-2 ${msg.role === 'user' ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
-                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Net Balance */}
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HiBanknotes className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Net Balance</span>
+            </div>
+            <div className="text-right">
+              <p className={`text-base font-bold ${netBalance >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {formatCurrency(Math.abs(netBalance))}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {netBalance > 0 ? 'Others owe you' : netBalance < 0 ? 'You owe others' : 'All settled'}
               </p>
             </div>
           </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-card border border-border shadow-md rounded-2xl rounded-bl-md p-4">
-              <div className="flex items-center gap-2">
-                <HiArrowPath className="w-4 h-4 text-primary animate-spin" />
-                <span className="text-sm text-muted-foreground">Analyzing...</span>
+        </CardContent>
+      </Card>
+
+      {/* Add Record Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-[360px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <HiPlus className="w-5 h-5 text-primary" /> New Record
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Type Toggle */}
+            <div>
+              <Label className="text-sm text-muted-foreground mb-2 block">Type</Label>
+              <Tabs value={newType} onValueChange={(v) => setNewType(v as 'borrowed' | 'lent')} className="w-full">
+                <TabsList className="grid grid-cols-2 w-full rounded-xl">
+                  <TabsTrigger value="borrowed" className="text-xs rounded-xl">I Borrowed</TabsTrigger>
+                  <TabsTrigger value="lent" className="text-xs rounded-xl">I Lent</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            <div>
+              <Label className="text-sm text-muted-foreground">Person Name *</Label>
+              <Input
+                placeholder="e.g., Alex"
+                value={newPerson}
+                onChange={(e) => setNewPerson(e.target.value)}
+                className="h-11 rounded-xl mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm text-muted-foreground">Amount *</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  className="pl-7 h-11 rounded-xl"
+                  min="0"
+                  step="0.01"
+                />
               </div>
             </div>
+
+            <div>
+              <Label className="text-sm text-muted-foreground">Note (optional)</Label>
+              <Input
+                placeholder="e.g., Dinner split"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                className="h-11 rounded-xl mt-1"
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm text-muted-foreground">Date</Label>
+              <Input
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="h-11 rounded-xl mt-1"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowAddDialog(false)}
+                className="flex-1 h-11 rounded-xl active:scale-95 transition-transform"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAdd}
+                disabled={!newPerson.trim() || !newAmount || parseFloat(newAmount) <= 0}
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground active:scale-95 transition-transform"
+              >
+                <HiPlus className="w-4 h-4 mr-1" /> Add Record
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* Quick Question Chips */}
-      {messages.length === 0 && (
-        <div className="flex flex-wrap gap-2 pb-3">
-          {quickQuestions.map((q, i) => (
-            <button
-              key={i}
-              onClick={() => handleSend(q)}
-              className="px-3 py-2 rounded-xl text-xs font-medium bg-secondary text-secondary-foreground border border-border active:scale-95 transition-transform min-h-[36px]"
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Input */}
-      <div className="flex gap-2 pt-3 pb-2 border-t border-border">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about spending..."
-          className="flex-1 h-11 rounded-xl"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-          disabled={loading}
-        />
-        <Button
-          onClick={() => handleSend()}
-          disabled={!input.trim() || loading}
-          className="bg-primary text-primary-foreground active:scale-90 transition-transform shrink-0 h-11 w-11 rounded-xl p-0"
-        >
-          <HiPaperAirplane className="w-5 h-5" />
-        </Button>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+// ============ SETTINGS DIALOG ============
+function SettingsDialog({
+  open, onOpenChange, categories, setCategories, topupPresets, setTopupPresets, expenses
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  categories: string[]
+  setCategories: React.Dispatch<React.SetStateAction<string[]>>
+  topupPresets: string[]
+  setTopupPresets: React.Dispatch<React.SetStateAction<string[]>>
+  expenses: Expense[]
+}) {
+  const [newCategory, setNewCategory] = useState('')
+  const [newPreset, setNewPreset] = useState('')
+  const [catError, setCatError] = useState('')
+  const [presetError, setPresetError] = useState('')
+  const [confirmDeleteCat, setConfirmDeleteCat] = useState<string | null>(null)
+  const [catDeleteInfo, setCatDeleteInfo] = useState<{ name: string; count: number } | null>(null)
+
+  const handleAddCategory = () => {
+    const trimmed = newCategory.trim()
+    if (!trimmed) { setCatError('Enter a category name'); return }
+    if (categories.length >= 15) { setCatError('Maximum 15 categories'); return }
+    if (categories.some(c => c.toLowerCase() === trimmed.toLowerCase())) { setCatError('Category already exists'); return }
+    setCategories(prev => [...prev, trimmed])
+    setNewCategory('')
+    setCatError('')
+  }
+
+  const handleDeleteCategoryClick = (cat: string) => {
+    const count = expenses.filter(e => e.category === cat).length
+    if (count > 0) {
+      setCatDeleteInfo({ name: cat, count })
+    } else {
+      setCategories(prev => prev.filter(c => c !== cat))
+    }
+  }
+
+  const handleConfirmDeleteCategory = () => {
+    if (catDeleteInfo) {
+      setCategories(prev => prev.filter(c => c !== catDeleteInfo.name))
+      setCatDeleteInfo(null)
+    }
+  }
+
+  const handleAddPreset = () => {
+    const trimmed = newPreset.trim()
+    if (!trimmed) { setPresetError('Enter a preset name'); return }
+    if (topupPresets.length >= 10) { setPresetError('Maximum 10 presets'); return }
+    if (topupPresets.some(p => p.toLowerCase() === trimmed.toLowerCase())) { setPresetError('Preset already exists'); return }
+    setTopupPresets(prev => [...prev, trimmed])
+    setNewPreset('')
+    setPresetError('')
+  }
+
+  const handleDeletePreset = (preset: string) => {
+    setTopupPresets(prev => prev.filter(p => p !== preset))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[380px] rounded-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <HiCog6Tooth className="w-5 h-5 text-primary" /> Settings
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-6 pt-2">
+          {/* Manage Categories */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+              <HiTag className="w-4 h-4 text-primary" /> Manage Categories
+            </h3>
+            <div className="space-y-2">
+              {categories.map(cat => (
+                <div key={cat} className="flex items-center justify-between p-2.5 rounded-xl bg-secondary/40">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${getCategoryColor(cat)}`}>
+                      {getCategoryIcon(cat)}
+                    </div>
+                    <span className="text-sm">{cat}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteCategoryClick(cat)}
+                    className="p-1.5 rounded-lg text-red-400 active:scale-90 active:bg-red-100 transition-all min-w-[30px] min-h-[30px] flex items-center justify-center"
+                  >
+                    <HiXMark className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Input
+                placeholder="New category..."
+                value={newCategory}
+                onChange={(e) => { setNewCategory(e.target.value); setCatError('') }}
+                className="flex-1 h-10 rounded-xl text-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddCategory() }}
+              />
+              <Button
+                onClick={handleAddCategory}
+                disabled={!newCategory.trim() || categories.length >= 15}
+                className="h-10 rounded-xl bg-primary text-primary-foreground active:scale-95 transition-transform px-3"
+                size="sm"
+              >
+                <HiPlus className="w-4 h-4" />
+              </Button>
+            </div>
+            {catError && <p className="text-[11px] text-red-500 mt-1">{catError}</p>}
+            <p className="text-[10px] text-muted-foreground mt-1">{categories.length}/15 categories</p>
+          </div>
+
+          {/* Confirm Delete Category With Expenses */}
+          {catDeleteInfo && (
+            <div className="p-3 rounded-xl bg-yellow-50 border border-yellow-200">
+              <div className="flex items-start gap-2">
+                <HiExclamationTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-yellow-800">
+                    &quot;{catDeleteInfo.name}&quot; has {catDeleteInfo.count} expense{catDeleteInfo.count > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-0.5">Delete anyway? Expenses will keep their category label.</p>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={handleConfirmDeleteCategory}
+                      className="px-3 py-1.5 rounded-lg bg-red-100 text-red-700 text-xs font-medium active:scale-95 transition-transform"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setCatDeleteInfo(null)}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium active:scale-95 transition-transform"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Manage Top-Up Presets */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2 mb-3">
+              <HiBanknotes className="w-4 h-4 text-primary" /> Manage Top-Up Presets
+            </h3>
+            <div className="space-y-2">
+              {topupPresets.map(preset => (
+                <div key={preset} className="flex items-center justify-between p-2.5 rounded-xl bg-secondary/40">
+                  <span className="text-sm">{preset}</span>
+                  <button
+                    onClick={() => handleDeletePreset(preset)}
+                    className="p-1.5 rounded-lg text-red-400 active:scale-90 active:bg-red-100 transition-all min-w-[30px] min-h-[30px] flex items-center justify-center"
+                  >
+                    <HiXMark className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Input
+                placeholder="New preset..."
+                value={newPreset}
+                onChange={(e) => { setNewPreset(e.target.value); setPresetError('') }}
+                className="flex-1 h-10 rounded-xl text-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAddPreset() }}
+              />
+              <Button
+                onClick={handleAddPreset}
+                disabled={!newPreset.trim() || topupPresets.length >= 10}
+                className="h-10 rounded-xl bg-primary text-primary-foreground active:scale-95 transition-transform px-3"
+                size="sm"
+              >
+                <HiPlus className="w-4 h-4" />
+              </Button>
+            </div>
+            {presetError && <p className="text-[11px] text-red-500 mt-1">{presetError}</p>}
+            <p className="text-[10px] text-muted-foreground mt-1">{topupPresets.length}/10 presets</p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1303,16 +1620,27 @@ function InsightsScreen({
 export default function Page() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [expenses, setExpenses] = useState<Expense[]>([])
-  const [budgets, setBudgets] = useState<BudgetItem[]>(CATEGORIES.map(c => ({ category: c, limit: 0 })))
+  const [budgets, setBudgets] = useState<BudgetItem[]>(DEFAULT_CATEGORIES.map(c => ({ category: c, limit: 0 })))
   const [topUps, setTopUps] = useState<TopUp[]>([])
+  const [categories, setCategories] = useState<string[]>([...DEFAULT_CATEGORIES])
+  const [topupPresets, setTopupPresets] = useState<string[]>([...DEFAULT_TOPUP_PRESETS])
+  const [borrows, setBorrows] = useState<BorrowRecord[]>([])
   const [sampleMode, setSampleMode] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [topUpAmount, setTopUpAmount] = useState('')
   const [topUpNote, setTopUpNote] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const realDataRef = useRef<{ expenses: Expense[]; budgets: BudgetItem[]; topUps: TopUp[] } | null>(null)
+  const realDataRef = useRef<{
+    expenses: Expense[]
+    budgets: BudgetItem[]
+    topUps: TopUp[]
+    borrows: BorrowRecord[]
+    categories: string[]
+    topupPresets: string[]
+  } | null>(null)
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -1333,15 +1661,20 @@ export default function Page() {
         const parsed = JSON.parse(storedTopUps)
         if (Array.isArray(parsed)) setTopUps(parsed)
       }
-      // Migrate old single balance to top-up entry
-      const oldBalance = localStorage.getItem(STORAGE_BALANCE)
-      if (oldBalance && !localStorage.getItem(STORAGE_TOPUPS)) {
-        const bal = parseFloat(oldBalance)
-        if (!isNaN(bal) && bal > 0) {
-          const migrated: TopUp = { id: genId(), amount: bal, note: 'Initial balance', date: getToday(), createdAt: new Date().toISOString() }
-          setTopUps([migrated])
-          localStorage.removeItem(STORAGE_BALANCE)
-        }
+      const storedCategories = localStorage.getItem(STORAGE_CATEGORIES)
+      if (storedCategories) {
+        const parsed = JSON.parse(storedCategories)
+        if (Array.isArray(parsed) && parsed.length > 0) setCategories(parsed)
+      }
+      const storedPresets = localStorage.getItem(STORAGE_TOPUP_PRESETS)
+      if (storedPresets) {
+        const parsed = JSON.parse(storedPresets)
+        if (Array.isArray(parsed) && parsed.length > 0) setTopupPresets(parsed)
+      }
+      const storedBorrows = localStorage.getItem(STORAGE_BORROWS)
+      if (storedBorrows) {
+        const parsed = JSON.parse(storedBorrows)
+        if (Array.isArray(parsed)) setBorrows(parsed)
       }
     } catch { /* ignore parse errors */ }
   }, [])
@@ -1364,17 +1697,51 @@ export default function Page() {
     try { localStorage.setItem(STORAGE_TOPUPS, JSON.stringify(topUps)) } catch { /* */ }
   }, [topUps, mounted, sampleMode])
 
+  // Persist categories
+  useEffect(() => {
+    if (!mounted || sampleMode) return
+    try { localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(categories)) } catch { /* */ }
+  }, [categories, mounted, sampleMode])
+
+  // Persist top-up presets
+  useEffect(() => {
+    if (!mounted || sampleMode) return
+    try { localStorage.setItem(STORAGE_TOPUP_PRESETS, JSON.stringify(topupPresets)) } catch { /* */ }
+  }, [topupPresets, mounted, sampleMode])
+
+  // Persist borrows
+  useEffect(() => {
+    if (!mounted || sampleMode) return
+    try { localStorage.setItem(STORAGE_BORROWS, JSON.stringify(borrows)) } catch { /* */ }
+  }, [borrows, mounted, sampleMode])
+
+  // Sync budgets when categories change
+  useEffect(() => {
+    if (!mounted) return
+    setBudgets(prev => {
+      const existing = new Map(prev.map(b => [b.category, b.limit]))
+      return categories.map(cat => ({
+        category: cat,
+        limit: existing.get(cat) ?? 0,
+      }))
+    })
+  }, [categories, mounted])
+
   const handleSampleToggle = (on: boolean) => {
     if (on) {
-      realDataRef.current = { expenses, budgets, topUps }
+      realDataRef.current = { expenses, budgets, topUps, borrows, categories, topupPresets }
       setExpenses(makeSampleExpenses())
       setBudgets(SAMPLE_BUDGETS)
       setTopUps(makeSampleTopups())
+      setBorrows(makeSampleBorrows())
     } else {
       if (realDataRef.current) {
         setExpenses(realDataRef.current.expenses)
         setBudgets(realDataRef.current.budgets)
         setTopUps(realDataRef.current.topUps)
+        setBorrows(realDataRef.current.borrows)
+        setCategories(realDataRef.current.categories)
+        setTopupPresets(realDataRef.current.topupPresets)
       }
       realDataRef.current = null
     }
@@ -1408,7 +1775,7 @@ export default function Page() {
   const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
   const currentBalance = totalTopUps - allTimeTotal
 
-  const screenTitle = screen === 'dashboard' ? 'ExpenseTrack' : screen === 'reports' ? 'Reports' : screen === 'budgets' ? 'Budgets' : 'Insights'
+  const screenTitle = screen === 'dashboard' ? 'ExpenseTrack' : screen === 'reports' ? 'Reports' : screen === 'budgets' ? 'Budgets' : 'Borrowing'
 
   return (
     <ErrorBoundary>
@@ -1425,12 +1792,20 @@ export default function Page() {
                 </div>
                 <h1 className="text-base font-semibold tracking-tight">{screenTitle}</h1>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {mounted && totalTopUps > 0 && (
                   <Badge className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border-0 ${currentBalance >= 0 ? 'bg-emerald-400/20 text-emerald-100' : 'bg-red-400/20 text-red-100'}`}>
                     <RiWallet3Line className="w-3 h-3 mr-1" />
                     {formatCurrency(Math.abs(currentBalance))}
                   </Badge>
+                )}
+                {screen === 'dashboard' && (
+                  <button
+                    onClick={() => setSettingsOpen(true)}
+                    className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center active:scale-90 transition-transform"
+                  >
+                    <HiCog6Tooth className="w-4 h-4 text-white" />
+                  </button>
                 )}
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="sample-toggle-mobile" className="text-[10px] text-primary-foreground/70 cursor-pointer">Sample</Label>
@@ -1446,11 +1821,11 @@ export default function Page() {
               <DashboardScreen
                 expenses={expenses}
                 setExpenses={setExpenses}
-                budgets={budgets}
-                sampleMode={sampleMode}
                 totalTopUps={totalTopUps}
                 topUps={topUps}
                 onTopUp={handleOpenTopUpDialog}
+                categories={categories}
+                onOpenSettings={() => setSettingsOpen(true)}
               />
             )}
             {screen === 'reports' && (
@@ -1460,19 +1835,14 @@ export default function Page() {
                 activeAgentId={activeAgentId}
                 setActiveAgentId={setActiveAgentId}
                 totalTopUps={totalTopUps}
+                categories={categories}
               />
             )}
             {screen === 'budgets' && (
-              <BudgetsScreen budgets={budgets} setBudgets={setBudgets} expenses={expenses} />
+              <BudgetsScreen budgets={budgets} setBudgets={setBudgets} expenses={expenses} categories={categories} />
             )}
-            {screen === 'insights' && (
-              <InsightsScreen
-                expenses={expenses}
-                budgets={budgets}
-                activeAgentId={activeAgentId}
-                setActiveAgentId={setActiveAgentId}
-                totalTopUps={totalTopUps}
-              />
+            {screen === 'borrowing' && (
+              <BorrowingScreen borrows={borrows} setBorrows={setBorrows} />
             )}
           </main>
 
@@ -1489,7 +1859,7 @@ export default function Page() {
                   >
                     <div className={`px-4 py-1 rounded-2xl transition-colors duration-200 ${isActive ? 'bg-primary/15' : ''}`}>
                       <div className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {isActive ? item.iconActive : item.iconInactive}
+                        {item.icon}
                       </div>
                     </div>
                     <span className={`text-[10px] font-medium transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -1530,14 +1900,31 @@ export default function Page() {
                 />
               </div>
             </div>
+
+            {/* Preset Note Chips */}
+            <div>
+              <Label className="text-sm text-muted-foreground">Quick Note</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {topupPresets.map(preset => (
+                  <button
+                    key={preset}
+                    onClick={() => setTopUpNote(preset)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-transform active:scale-95 min-h-[32px] ${topUpNote === preset ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary text-secondary-foreground border-border'}`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="topup-note" className="text-sm text-muted-foreground">Note (optional)</Label>
               <Input
                 id="topup-note"
-                placeholder="e.g., Salary, Freelance, Gift..."
+                placeholder="Custom note..."
                 value={topUpNote}
                 onChange={(e) => setTopUpNote(e.target.value)}
-                className="h-11 rounded-xl mt-2"
+                className="h-11 rounded-xl mt-1"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleTopUp() }}
               />
             </div>
@@ -1561,6 +1948,17 @@ export default function Page() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        categories={categories}
+        setCategories={setCategories}
+        topupPresets={topupPresets}
+        setTopupPresets={setTopupPresets}
+        expenses={expenses}
+      />
     </ErrorBoundary>
   )
 }
