@@ -11,6 +11,8 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Progress } from '@/components/ui/progress'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   HiHome,
   HiDocumentChartBar,
@@ -38,13 +40,16 @@ import {
   HiBanknotes,
   HiSparkles,
   HiInformationCircle,
+  HiWallet,
+  HiMinus,
 } from 'react-icons/hi2'
-import { RiHomeSmileLine, RiRestaurantLine } from 'react-icons/ri'
+import { RiHomeSmileLine, RiRestaurantLine, RiWallet3Line } from 'react-icons/ri'
 
 // ============ CONSTANTS ============
 const AGENT_ID = '69a04fd17549c200e00d2fb9'
 const STORAGE_EXPENSES = 'expensetrack_expenses'
 const STORAGE_BUDGETS = 'expensetrack_budgets'
+const STORAGE_BALANCE = 'expensetrack_balance'
 
 const CATEGORIES = ['Food', 'Household', 'Travel', 'Entertainment', 'Health', 'Other'] as const
 type Category = (typeof CATEGORIES)[number]
@@ -141,6 +146,8 @@ const SAMPLE_BUDGETS: BudgetItem[] = [
   { category: 'Health', limit: 250 },
   { category: 'Other', limit: 100 },
 ]
+
+const SAMPLE_BALANCE = 2000
 
 // ============ HELPERS ============
 function getCategoryIcon(category: string) {
@@ -250,23 +257,103 @@ class ErrorBoundary extends React.Component<
 // ============ NAV ITEMS ============
 type Screen = 'dashboard' | 'reports' | 'budgets' | 'insights'
 
-const NAV_ITEMS: { id: Screen; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: <HiHome className="w-5 h-5" /> },
-  { id: 'reports', label: 'Reports', icon: <HiDocumentChartBar className="w-5 h-5" /> },
-  { id: 'budgets', label: 'Budgets', icon: <HiCurrencyDollar className="w-5 h-5" /> },
-  { id: 'insights', label: 'Insights', icon: <HiChatBubbleLeftRight className="w-5 h-5" /> },
+const NAV_ITEMS: { id: Screen; label: string; iconActive: React.ReactNode; iconInactive: React.ReactNode }[] = [
+  { id: 'dashboard', label: 'Home', iconActive: <HiHome className="w-6 h-6" />, iconInactive: <HiHome className="w-6 h-6" /> },
+  { id: 'reports', label: 'Reports', iconActive: <HiDocumentChartBar className="w-6 h-6" />, iconInactive: <HiDocumentChartBar className="w-6 h-6" /> },
+  { id: 'budgets', label: 'Budgets', iconActive: <HiCurrencyDollar className="w-6 h-6" />, iconInactive: <HiCurrencyDollar className="w-6 h-6" /> },
+  { id: 'insights', label: 'Chat', iconActive: <HiChatBubbleLeftRight className="w-6 h-6" />, iconInactive: <HiChatBubbleLeftRight className="w-6 h-6" /> },
 ]
+
+// ============ BALANCE CARD ============
+function BalanceCard({
+  preBalance,
+  totalSpent,
+  onEditBalance,
+}: {
+  preBalance: number
+  totalSpent: number
+  onEditBalance: () => void
+}) {
+  const currentBalance = preBalance - totalSpent
+  const isPositive = currentBalance >= 0
+  const hasBalance = preBalance > 0
+
+  return (
+    <Card className="relative overflow-hidden border-0 shadow-lg">
+      <div className={`absolute inset-0 ${isPositive ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700' : 'bg-gradient-to-br from-red-500 via-red-600 to-rose-700'}`} />
+      <CardContent className="relative p-5">
+        <div className="flex items-start justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+              <HiWallet className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-white/70 font-medium">Current Balance</p>
+              {hasBalance && (
+                <p className="text-[10px] text-white/50">Pre-balance: {formatCurrency(preBalance)}</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onEditBalance}
+            className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center active:scale-90 transition-transform"
+          >
+            <HiPencilSquare className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {hasBalance ? (
+          <>
+            <p className={`text-3xl font-bold mt-2 ${isPositive ? 'text-white' : 'text-white'}`}>
+              {isPositive ? '' : '-'}{formatCurrency(Math.abs(currentBalance))}
+            </p>
+            <div className="flex items-center gap-4 mt-3">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                  <HiMinus className="w-3 h-3 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/60">Spent</p>
+                  <p className="text-xs font-semibold text-white">{formatCurrency(totalSpent)}</p>
+                </div>
+              </div>
+              {preBalance > 0 && (
+                <div className="flex-1">
+                  <div className="flex justify-between text-[10px] text-white/60 mb-1">
+                    <span>Budget used</span>
+                    <span>{Math.min((totalSpent / preBalance) * 100, 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-white/70 transition-all duration-500"
+                      style={{ width: `${Math.min((totalSpent / preBalance) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="mt-2">
+            <p className="text-lg font-semibold text-white/80">Set your balance</p>
+            <p className="text-xs text-white/50 mt-0.5">Tap the edit button to set a starting balance</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 
 // ============ STAT CARD ============
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
   return (
-    <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
+    <Card className="border-0 shadow-md rounded-2xl">
       <CardContent className="p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">{icon}</div>
         <div className="min-w-0">
-          <p className="text-xs text-muted-foreground font-medium">{label}</p>
+          <p className="text-[11px] text-muted-foreground font-medium">{label}</p>
           <p className="text-lg font-semibold text-foreground truncate">{value}</p>
-          {sub && <p className="text-xs text-muted-foreground truncate">{sub}</p>}
+          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
         </div>
       </CardContent>
     </Card>
@@ -275,15 +362,17 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 // ============ DASHBOARD SCREEN ============
 function DashboardScreen({
-  expenses, setExpenses, budgets, sampleMode
+  expenses, setExpenses, budgets, sampleMode, preBalance, onEditBalance
 }: {
   expenses: Expense[]
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>
   budgets: BudgetItem[]
   sampleMode: boolean
+  preBalance: number
+  onEditBalance: () => void
 }) {
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState<string>('Food')
+  const [category, setCategory] = useState<string>('')
   const [note, setNote] = useState('')
   const [editId, setEditId] = useState<string | null>(null)
   const [editAmount, setEditAmount] = useState('')
@@ -292,6 +381,7 @@ function DashboardScreen({
   const today = getToday()
   const todayExpenses = expenses.filter(e => e.date === today)
   const todayTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
 
   const topCategory = todayExpenses.reduce<Record<string, number>>((acc, e) => {
     acc[e.category] = (acc[e.category] ?? 0) + e.amount
@@ -301,7 +391,7 @@ function DashboardScreen({
 
   const handleAdd = () => {
     const parsed = parseFloat(amount)
-    if (isNaN(parsed) || parsed <= 0) return
+    if (isNaN(parsed) || parsed <= 0 || !category) return
     const newExpense: Expense = {
       id: genId(),
       amount: parsed,
@@ -333,22 +423,24 @@ function DashboardScreen({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 px-4 pt-4">
+      {/* Balance Hero Card */}
+      <BalanceCard preBalance={preBalance} totalSpent={allTimeTotal} onEditBalance={onEditBalance} />
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={<HiBanknotes className="w-5 h-5" />} label="Today's Total" value={formatCurrency(todayTotal)} />
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard icon={<HiBanknotes className="w-5 h-5" />} label="Today" value={formatCurrency(todayTotal)} />
         <StatCard icon={<HiChartPie className="w-5 h-5" />} label="Top Category" value={topCatName} sub={topCatName !== 'None' ? formatCurrency(topCategory[topCatName] ?? 0) : undefined} />
-        <StatCard icon={<HiShoppingCart className="w-5 h-5" />} label="Entries Today" value={todayExpenses.length.toString()} sub={`${expenses.length} total`} />
       </div>
 
       {/* Quick Entry Form */}
-      <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <HiPlus className="w-4 h-4 text-primary" /> Quick Add Expense
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <HiPlus className="w-4 h-4 text-primary" /> Add Expense
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 px-4 pb-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">$</span>
@@ -357,36 +449,43 @@ function DashboardScreen({
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="pl-7"
+                className="pl-7 h-11 rounded-xl text-base"
                 min="0"
                 step="0.01"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
               />
             </div>
             <Input
-              placeholder="Note (optional)"
+              placeholder="Note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="flex-1"
+              className="flex-1 h-11 rounded-xl"
               onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 flex items-center gap-1.5 ${category === cat ? getCategoryBadgeSelected(cat) : getCategoryColor(cat)}`}
-              >
-                {getCategoryIcon(cat)}
-                {cat}
-              </button>
-            ))}
+          <div>
+            {!category && (
+              <p className="text-[11px] text-muted-foreground mb-2 flex items-center gap-1">
+                <HiInformationCircle className="w-3 h-3" /> Select a category
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium border transition-transform active:scale-95 flex items-center gap-1.5 min-h-[36px] ${category === cat ? getCategoryBadgeSelected(cat) : getCategoryColor(cat)}`}
+                >
+                  {getCategoryIcon(cat)}
+                  {cat}
+                </button>
+              ))}
+            </div>
           </div>
           <Button
             onClick={handleAdd}
-            disabled={!amount || parseFloat(amount) <= 0}
-            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={!amount || parseFloat(amount) <= 0 || !category}
+            className="w-full h-11 rounded-xl bg-primary text-primary-foreground active:scale-[0.98] transition-transform text-sm font-medium"
           >
             <HiPlus className="w-4 h-4 mr-2" /> Add Expense
           </Button>
@@ -394,24 +493,27 @@ function DashboardScreen({
       </Card>
 
       {/* Today's Expenses */}
-      <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <HiCalendarDays className="w-4 h-4 text-primary" /> Today's Expenses
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="text-sm font-semibold flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <HiCalendarDays className="w-4 h-4 text-primary" /> Today
+            </span>
+            <Badge variant="outline" className="text-[10px] font-normal">{todayExpenses.length} entries</Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           {todayExpenses.length === 0 ? (
             <div className="text-center py-8">
-              <HiCurrencyDollar className="w-10 h-10 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-sm text-muted-foreground">No expenses recorded today</p>
-              <p className="text-xs text-muted-foreground mt-1">Add your first expense above to get started</p>
+              <HiCurrencyDollar className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">No expenses yet today</p>
+              <p className="text-xs text-muted-foreground mt-1">Add your first expense above</p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[360px]">
+            <ScrollArea className="max-h-[320px]">
               <div className="space-y-2">
                 {todayExpenses.map(exp => (
-                  <div key={exp.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 hover:bg-secondary/70 transition-colors group">
+                  <div key={exp.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 active:bg-secondary/70 transition-colors">
                     {editId === exp.id ? (
                       <>
                         <div className="flex-1 flex gap-2 items-center">
@@ -419,52 +521,52 @@ function DashboardScreen({
                             type="number"
                             value={editAmount}
                             onChange={(e) => setEditAmount(e.target.value)}
-                            className="w-24 h-8 text-sm"
+                            className="w-20 h-9 text-sm rounded-xl"
                             min="0"
                             step="0.01"
                           />
                           <Input
                             value={editNote}
                             onChange={(e) => setEditNote(e.target.value)}
-                            className="flex-1 h-8 text-sm"
+                            className="flex-1 h-9 text-sm rounded-xl"
                             placeholder="Note"
                           />
                         </div>
                         <button
                           onClick={() => handleEditSave(exp.id)}
-                          className="p-1.5 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors"
+                          className="p-2 rounded-xl bg-emerald-100 text-emerald-600 active:scale-90 transition-transform min-w-[36px] min-h-[36px] flex items-center justify-center"
                         >
                           <HiCheck className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setEditId(null)}
-                          className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 transition-colors"
+                          className="p-2 rounded-xl bg-red-100 text-red-500 active:scale-90 transition-transform min-w-[36px] min-h-[36px] flex items-center justify-center"
                         >
                           <HiXMark className="w-4 h-4" />
                         </button>
                       </>
                     ) : (
                       <>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${getCategoryColor(exp.category)}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${getCategoryColor(exp.category)}`}>
                           {getCategoryIcon(exp.category)}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{exp.note || exp.category}</p>
-                          <p className="text-xs text-muted-foreground">{exp.category}</p>
+                          <p className="text-[11px] text-muted-foreground">{exp.category}</p>
                         </div>
                         <p className="text-sm font-semibold text-foreground">{formatCurrency(exp.amount)}</p>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1">
                           <button
                             onClick={() => handleEditStart(exp)}
-                            className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-500 transition-colors"
+                            className="p-2 rounded-xl active:bg-blue-100 text-blue-500 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                           >
-                            <HiPencilSquare className="w-3.5 h-3.5" />
+                            <HiPencilSquare className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(exp.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 transition-colors"
+                            className="p-2 rounded-xl active:bg-red-100 text-red-500 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
                           >
-                            <HiTrash className="w-3.5 h-3.5" />
+                            <HiTrash className="w-4 h-4" />
                           </button>
                         </div>
                       </>
@@ -476,23 +578,41 @@ function DashboardScreen({
           )}
         </CardContent>
       </Card>
+
+      {/* Agent Info */}
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <HiInformationCircle className="w-4 h-4 text-muted-foreground" />
+            <p className="text-xs font-medium text-muted-foreground">AI Agent</p>
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="w-2 h-2 rounded-full bg-muted-foreground/30 shrink-0" />
+            <p className="text-xs text-foreground">Expense Insights Agent - Ready</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
 // ============ REPORTS SCREEN ============
 function ReportsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId
+  expenses, budgets, activeAgentId, setActiveAgentId, preBalance
 }: {
   expenses: Expense[]
   budgets: BudgetItem[]
   activeAgentId: string | null
   setActiveAgentId: (id: string | null) => void
+  preBalance: number
 }) {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
   const [report, setReport] = useState<AgentReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const currentBalance = preBalance - allTimeTotal
 
   const getDateRange = useCallback(() => {
     const now = new Date()
@@ -520,13 +640,17 @@ function ReportsScreen({
 
     const budgetLines = budgets.map(b => `  - ${b.category}: $${b.limit} limit`).join('\n')
 
+    const balanceContext = preBalance > 0
+      ? `\nBALANCE: Pre-balance $${preBalance.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
+      : ''
+
     const message = `Here is my expense data for analysis:
 
 EXPENSES (${range.label}: ${range.start} to ${range.end}):
 ${expenseLines}
 
 BUDGETS:
-${budgetLines}
+${budgetLines}${balanceContext}
 
 PERIOD: ${period} for ${range.start} to ${range.end}
 
@@ -551,56 +675,52 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 px-4 pt-4">
       {/* Controls */}
-      <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold flex items-center gap-2">
-                <HiDocumentChartBar className="w-4 h-4 text-primary" /> Spending Report
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Analyze your expenses with AI-powered insights</p>
-            </div>
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <Tabs value={period} onValueChange={(v) => setPeriod(v as 'daily' | 'weekly' | 'monthly')} className="flex-1 sm:flex-none">
-                <TabsList className="grid grid-cols-3 w-full sm:w-auto">
-                  <TabsTrigger value="daily" className="text-xs">Day</TabsTrigger>
-                  <TabsTrigger value="weekly" className="text-xs">Week</TabsTrigger>
-                  <TabsTrigger value="monthly" className="text-xs">Month</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <Button onClick={handleGenerateReport} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
-                {loading ? <HiArrowPath className="w-4 h-4 mr-2 animate-spin" /> : <HiSparkles className="w-4 h-4 mr-2" />}
-                Generate
-              </Button>
-            </div>
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardContent className="p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <HiDocumentChartBar className="w-4 h-4 text-primary" /> Spending Report
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">AI-powered expense analysis</p>
           </div>
+          <Tabs value={period} onValueChange={(v) => setPeriod(v as 'daily' | 'weekly' | 'monthly')} className="w-full">
+            <TabsList className="grid grid-cols-3 w-full rounded-xl">
+              <TabsTrigger value="daily" className="text-xs rounded-xl">Day</TabsTrigger>
+              <TabsTrigger value="weekly" className="text-xs rounded-xl">Week</TabsTrigger>
+              <TabsTrigger value="monthly" className="text-xs rounded-xl">Month</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button onClick={handleGenerateReport} disabled={loading} className="w-full h-11 rounded-xl bg-primary text-primary-foreground active:scale-[0.98] transition-transform">
+            {loading ? <HiArrowPath className="w-4 h-4 mr-2 animate-spin" /> : <HiSparkles className="w-4 h-4 mr-2" />}
+            Generate Report
+          </Button>
         </CardContent>
       </Card>
 
       {/* Loading Skeleton */}
       {loading && (
-        <div className="space-y-4">
-          <Skeleton className="h-24 w-full rounded-xl" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Skeleton className="h-40 rounded-xl" />
-            <Skeleton className="h-40 rounded-xl" />
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-32 rounded-2xl" />
+            <Skeleton className="h-32 rounded-2xl" />
           </div>
-          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
       )}
 
       {/* Error State */}
       {error && !loading && (
-        <Card className="border-destructive/30 bg-destructive/5">
+        <Card className="border-destructive/30 bg-destructive/5 rounded-2xl">
           <CardContent className="p-4 flex items-center gap-3">
             <HiExclamationTriangle className="w-5 h-5 text-destructive shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-destructive">Report generation failed</p>
+              <p className="text-sm font-medium text-destructive">Report failed</p>
               <p className="text-xs text-muted-foreground">{error}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleGenerateReport}>
+            <Button variant="outline" size="sm" onClick={handleGenerateReport} className="rounded-xl active:scale-95 transition-transform">
               <HiArrowPath className="w-3.5 h-3.5 mr-1" /> Retry
             </Button>
           </CardContent>
@@ -609,29 +729,29 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
       {/* Empty State */}
       {!loading && !error && !report && (
-        <div className="text-center py-16">
+        <div className="text-center py-12">
           <HiDocumentChartBar className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
           <p className="text-sm text-muted-foreground font-medium">No report generated yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Select a period and click Generate to analyze your spending</p>
+          <p className="text-xs text-muted-foreground mt-1">Select a period and tap Generate</p>
         </div>
       )}
 
       {/* Report Results */}
       {!loading && report && (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Summary */}
-          <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
+          <Card className="border-0 shadow-md rounded-2xl">
             <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="text-xs">{report?.report_type ?? 'Report'}</Badge>
+                    <Badge variant="outline" className="text-[10px] rounded-lg">{report?.report_type ?? 'Report'}</Badge>
                   </div>
                   <div className="text-sm text-foreground">{renderMarkdown(report?.summary ?? '')}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs text-muted-foreground">Total Spent</p>
-                  <p className="text-2xl font-bold text-primary">{formatCurrency(report?.total_spent ?? 0)}</p>
+                  <p className="text-[10px] text-muted-foreground">Total Spent</p>
+                  <p className="text-xl font-bold text-primary">{formatCurrency(report?.total_spent ?? 0)}</p>
                 </div>
               </div>
             </CardContent>
@@ -640,16 +760,16 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
           {/* Category Breakdown */}
           {Array.isArray(report?.category_breakdown) && report.category_breakdown.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <HiChartPie className="w-4 h-4 text-primary" /> Category Breakdown
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 px-1">
+                <HiChartPie className="w-4 h-4 text-primary" /> Categories
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3">
                 {report.category_breakdown.map((cat, idx) => (
-                  <Card key={idx} className={`backdrop-blur-[16px] bg-white/75 border shadow-sm ${cat?.is_over_budget ? 'border-red-300' : 'border-white/[0.18]'}`}>
+                  <Card key={idx} className={`border-0 shadow-md rounded-2xl ${cat?.is_over_budget ? 'ring-1 ring-red-300' : ''}`}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${getCategoryColor(cat?.category ?? '')}`}>
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${getCategoryColor(cat?.category ?? '')}`}>
                             {getCategoryIcon(cat?.category ?? '')}
                           </div>
                           <span className="text-sm font-medium">{cat?.category ?? 'Unknown'}</span>
@@ -661,7 +781,7 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
                         <span className="text-border">|</span>
                         <span>{cat?.item_count ?? 0} items</span>
                         {cat?.is_over_budget && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Over Budget</Badge>
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 rounded-lg">Over</Badge>
                         )}
                       </div>
                       {(cat?.budget_limit ?? 0) > 0 && (
@@ -687,22 +807,22 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
           {/* Top Expenses */}
           {Array.isArray(report?.top_expenses) && report.top_expenses.length > 0 && (
-            <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <HiArrowTrendingUp className="w-4 h-4 text-primary" /> Top Expenses
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="space-y-2">
                   {report.top_expenses.map((te, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/40">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 ${getCategoryColor(te?.category ?? '')}`}>
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${getCategoryColor(te?.category ?? '')}`}>
                         {getCategoryIcon(te?.category ?? '')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{te?.note ?? 'No note'}</p>
-                        <p className="text-xs text-muted-foreground">{te?.category ?? ''}{te?.date ? ` - ${te.date}` : ''}</p>
+                        <p className="text-[11px] text-muted-foreground">{te?.category ?? ''}{te?.date ? ` - ${te.date}` : ''}</p>
                       </div>
                       <p className="text-sm font-semibold shrink-0">{formatCurrency(te?.amount ?? 0)}</p>
                     </div>
@@ -714,22 +834,22 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
           {/* Trends */}
           {Array.isArray(report?.trends) && report.trends.length > 0 && (
-            <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <HiArrowTrendingUp className="w-4 h-4 text-primary" /> Trends
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="space-y-2">
                   {report.trends.map((trend, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/40">
+                    <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40">
                       {trend?.direction === 'up'
                         ? <HiArrowTrendingUp className="w-5 h-5 text-red-500 shrink-0" />
                         : <HiArrowTrendingDown className="w-5 h-5 text-emerald-500 shrink-0" />
                       }
                       <p className="text-sm flex-1">{trend?.description ?? ''}</p>
-                      <Badge variant="outline" className={`text-xs ${trend?.direction === 'up' ? 'text-red-600 border-red-200' : 'text-emerald-600 border-emerald-200'}`}>
+                      <Badge variant="outline" className={`text-[10px] rounded-lg ${trend?.direction === 'up' ? 'text-red-600 border-red-200' : 'text-emerald-600 border-emerald-200'}`}>
                         {trend?.direction === 'up' ? '+' : '-'}{Math.abs(trend?.change_percentage ?? 0).toFixed(1)}%
                       </Badge>
                     </div>
@@ -741,18 +861,18 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
           {/* Budget Alerts */}
           {Array.isArray(report?.budget_alerts) && report.budget_alerts.length > 0 && (
-            <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <HiExclamationTriangle className="w-4 h-4 text-yellow-500" /> Budget Alerts
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="space-y-2">
                   {report.budget_alerts.map((alert, idx) => (
                     <div
                       key={idx}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${alert?.severity === 'high' ? 'bg-red-50 border-red-200' : alert?.severity === 'medium' ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200'}`}
+                      className={`flex items-start gap-3 p-3 rounded-xl border ${alert?.severity === 'high' ? 'bg-red-50 border-red-200' : alert?.severity === 'medium' ? 'bg-yellow-50 border-yellow-200' : 'bg-blue-50 border-blue-200'}`}
                     >
                       <HiExclamationTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${alert?.severity === 'high' ? 'text-red-500' : alert?.severity === 'medium' ? 'text-yellow-500' : 'text-blue-500'}`} />
                       <div>
@@ -768,16 +888,16 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
           {/* Insights */}
           {Array.isArray(report?.insights) && report.insights.length > 0 && (
-            <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <HiLightBulb className="w-4 h-4 text-yellow-500" /> Insights
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="space-y-2">
                   {report.insights.map((ins, idx) => (
-                    <div key={idx} className="flex items-start gap-3 p-2.5 rounded-lg bg-secondary/40">
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-secondary/40">
                       <HiLightBulb className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
                       <div className="text-sm flex-1">{renderMarkdown(ins?.text ?? '')}</div>
                     </div>
@@ -789,13 +909,13 @@ REQUEST: Generate a ${period} spending report with category breakdown, trends, b
 
           {/* Chat Answer */}
           {report?.chat_answer && (
-            <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-              <CardHeader className="pb-3">
+            <Card className="border-0 shadow-md rounded-2xl">
+              <CardHeader className="pb-2 px-4 pt-4">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <HiChatBubbleLeftRight className="w-4 h-4 text-primary" /> Analysis
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 <div className="text-sm">{renderMarkdown(report.chat_answer)}</div>
               </CardContent>
             </Card>
@@ -821,7 +941,6 @@ function BudgetsScreen({
     setLocalBudgets(budgets)
   }, [budgets])
 
-  // Calculate current month spend per category
   const now = new Date()
   const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
@@ -846,48 +965,48 @@ function BudgetsScreen({
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm">
-        <CardHeader className="pb-3">
+    <div className="space-y-4 px-4 pt-4">
+      <Card className="border-0 shadow-md rounded-2xl">
+        <CardHeader className="pb-2 px-4 pt-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <HiCurrencyDollar className="w-4 h-4 text-primary" /> Monthly Budgets
             </CardTitle>
-            <Button onClick={handleSave} className="bg-primary text-primary-foreground hover:bg-primary/90" size="sm">
+            <Button onClick={handleSave} className="bg-primary text-primary-foreground active:scale-95 transition-transform rounded-xl" size="sm">
               {saved
                 ? <><HiCheckCircle className="w-4 h-4 mr-1" /> Saved</>
-                : <><HiCheck className="w-4 h-4 mr-1" /> Save Budgets</>
+                : <><HiCheck className="w-4 h-4 mr-1" /> Save</>
               }
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">Set spending limits for each category and track your progress</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Set monthly limits per category</p>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
+        <CardContent className="px-4 pb-4">
+          <div className="space-y-3">
             {localBudgets.map(budget => {
               const spent = monthSpend[budget.category] ?? 0
               const pct = budget.limit > 0 ? (spent / budget.limit) * 100 : 0
               const remaining = budget.limit - spent
 
               return (
-                <div key={budget.category} className="p-4 rounded-xl bg-secondary/40">
+                <div key={budget.category} className="p-4 rounded-2xl bg-secondary/40">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getCategoryColor(budget.category)}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${getCategoryColor(budget.category)}`}>
                         {getCategoryIcon(budget.category)}
                       </div>
                       <div>
                         <p className="text-sm font-medium">{budget.category}</p>
-                        <p className="text-xs text-muted-foreground">Spent: {formatCurrency(spent)}</p>
+                        <p className="text-[11px] text-muted-foreground">Spent: {formatCurrency(spent)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="text-xs text-muted-foreground">$</span>
                       <Input
                         type="number"
                         value={budget.limit || ''}
                         onChange={(e) => handleLimitChange(budget.category, e.target.value)}
-                        className="w-24 h-8 text-sm text-right"
+                        className="w-20 h-9 text-sm text-right rounded-xl"
                         min="0"
                         step="10"
                         placeholder="0"
@@ -904,7 +1023,7 @@ function BudgetsScreen({
                     <div className="flex justify-between text-[10px] text-muted-foreground">
                       <span>{pct.toFixed(0)}% used</span>
                       <span className={remaining < 0 ? 'text-red-500 font-medium' : ''}>
-                        {remaining >= 0 ? `${formatCurrency(remaining)} remaining` : `${formatCurrency(Math.abs(remaining))} over budget`}
+                        {remaining >= 0 ? `${formatCurrency(remaining)} left` : `${formatCurrency(Math.abs(remaining))} over`}
                       </span>
                     </div>
                   </div>
@@ -920,23 +1039,27 @@ function BudgetsScreen({
 
 // ============ INSIGHTS CHAT SCREEN ============
 function InsightsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId
+  expenses, budgets, activeAgentId, setActiveAgentId, preBalance
 }: {
   expenses: Expense[]
   budgets: BudgetItem[]
   activeAgentId: string | null
   setActiveAgentId: (id: string | null) => void
+  preBalance: number
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const currentBalance = preBalance - allTimeTotal
+
   const quickQuestions = [
     "This week's summary",
-    'Biggest expense this month',
-    'Compare Food vs Travel',
-    'Budget health check',
+    'Biggest expense',
+    'Food vs Travel',
+    'Budget check',
   ]
 
   useEffect(() => {
@@ -950,8 +1073,11 @@ function InsightsScreen({
       ? expenses.slice(0, 100).map(e => `  - ${e.date} | ${e.category} | $${e.amount.toFixed(2)} | ${e.note || 'No note'}`).join('\n')
       : '  No expenses recorded.'
     const budgetLines = budgets.map(b => `  - ${b.category}: $${b.limit} limit`).join('\n')
-    return `EXPENSES:\n${expenseLines}\n\nBUDGETS:\n${budgetLines}`
-  }, [expenses, budgets])
+    const balanceInfo = preBalance > 0
+      ? `\n\nBALANCE: Pre-balance $${preBalance.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
+      : ''
+    return `EXPENSES:\n${expenseLines}\n\nBUDGETS:\n${budgetLines}${balanceInfo}`
+  }, [expenses, budgets, preBalance, currentBalance, allTimeTotal])
 
   const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -991,27 +1117,26 @@ function InsightsScreen({
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-5rem)]">
+    <div className="flex flex-col h-[calc(100vh-130px)] px-4 pt-4">
       {/* Chat Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 pb-3 min-h-0">
         {messages.length === 0 && (
-          <div className="text-center py-16">
+          <div className="text-center py-12">
             <HiChatBubbleLeftRight className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground font-medium">Ask anything about your expenses</p>
-            <p className="text-xs text-muted-foreground mt-1">The AI will analyze your spending data and provide insights</p>
+            <p className="text-sm text-muted-foreground font-medium">Ask about your spending</p>
+            <p className="text-xs text-muted-foreground mt-1">AI-powered expense insights</p>
           </div>
         )}
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl p-3.5 ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm rounded-bl-md'}`}>
+            <div className={`max-w-[85%] rounded-2xl p-3.5 ${msg.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border border-border shadow-md rounded-bl-md'}`}>
               <div className={`text-sm ${msg.role === 'user' ? '' : 'text-foreground'}`}>
                 {renderMarkdown(msg.content)}
               </div>
-              {/* Render structured data if available */}
               {msg.role === 'agent' && msg.data && (
                 <div className="mt-3 space-y-2">
                   {(msg.data?.total_spent ?? 0) > 0 && (
-                    <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5">
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-primary/5">
                       <HiBanknotes className="w-4 h-4 text-primary" />
                       <span className="text-xs">Total: <strong className="font-semibold">{formatCurrency(msg.data.total_spent)}</strong></span>
                     </div>
@@ -1019,7 +1144,7 @@ function InsightsScreen({
                   {Array.isArray(msg.data?.category_breakdown) && msg.data.category_breakdown.length > 0 && (
                     <div className="space-y-1">
                       {msg.data.category_breakdown.slice(0, 4).map((cat, ci) => (
-                        <div key={ci} className="flex items-center justify-between text-xs p-1.5 rounded-lg bg-secondary/50">
+                        <div key={ci} className="flex items-center justify-between text-xs p-2 rounded-xl bg-secondary/50">
                           <span className="flex items-center gap-1.5">
                             {getCategoryIcon(cat?.category ?? '')} {cat?.category}
                           </span>
@@ -1031,7 +1156,7 @@ function InsightsScreen({
                   {Array.isArray(msg.data?.budget_alerts) && msg.data.budget_alerts.length > 0 && (
                     <div className="space-y-1 mt-1">
                       {msg.data.budget_alerts.slice(0, 2).map((ba, bi) => (
-                        <div key={bi} className="text-xs flex items-start gap-1.5 p-1.5 rounded-lg bg-yellow-50">
+                        <div key={bi} className="text-xs flex items-start gap-1.5 p-2 rounded-xl bg-yellow-50">
                           <HiExclamationTriangle className="w-3.5 h-3.5 text-yellow-500 mt-0.5 shrink-0" />
                           <span>{ba?.message ?? ''}</span>
                         </div>
@@ -1058,10 +1183,10 @@ function InsightsScreen({
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="backdrop-blur-[16px] bg-white/75 border border-white/[0.18] shadow-sm rounded-2xl rounded-bl-md p-4">
+            <div className="bg-card border border-border shadow-md rounded-2xl rounded-bl-md p-4">
               <div className="flex items-center gap-2">
                 <HiArrowPath className="w-4 h-4 text-primary animate-spin" />
-                <span className="text-sm text-muted-foreground">Analyzing your expenses...</span>
+                <span className="text-sm text-muted-foreground">Analyzing...</span>
               </div>
             </div>
           </div>
@@ -1075,7 +1200,7 @@ function InsightsScreen({
             <button
               key={i}
               onClick={() => handleSend(q)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border transition-colors"
+              className="px-3 py-2 rounded-xl text-xs font-medium bg-secondary text-secondary-foreground border border-border active:scale-95 transition-transform min-h-[36px]"
             >
               {q}
             </button>
@@ -1084,21 +1209,21 @@ function InsightsScreen({
       )}
 
       {/* Input */}
-      <div className="flex gap-2 pt-3 border-t border-border">
+      <div className="flex gap-2 pt-3 pb-2 border-t border-border">
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your spending..."
-          className="flex-1"
+          placeholder="Ask about spending..."
+          className="flex-1 h-11 rounded-xl"
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
           disabled={loading}
         />
         <Button
           onClick={() => handleSend()}
           disabled={!input.trim() || loading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+          className="bg-primary text-primary-foreground active:scale-90 transition-transform shrink-0 h-11 w-11 rounded-xl p-0"
         >
-          <HiPaperAirplane className="w-4 h-4" />
+          <HiPaperAirplane className="w-5 h-5" />
         </Button>
       </div>
     </div>
@@ -1110,12 +1235,14 @@ export default function Page() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [budgets, setBudgets] = useState<BudgetItem[]>(CATEGORIES.map(c => ({ category: c, limit: 0 })))
+  const [preBalance, setPreBalance] = useState<number>(0)
   const [sampleMode, setSampleMode] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
+  const [balanceInput, setBalanceInput] = useState('')
 
-  // Stash real data when toggling sample mode
-  const realDataRef = useRef<{ expenses: Expense[]; budgets: BudgetItem[] } | null>(null)
+  const realDataRef = useRef<{ expenses: Expense[]; budgets: BudgetItem[]; balance: number } | null>(null)
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -1131,149 +1258,206 @@ export default function Page() {
         const parsed = JSON.parse(storedBudgets)
         if (Array.isArray(parsed)) setBudgets(parsed)
       }
+      const storedBalance = localStorage.getItem(STORAGE_BALANCE)
+      if (storedBalance) {
+        const parsed = parseFloat(storedBalance)
+        if (!isNaN(parsed)) setPreBalance(parsed)
+      }
     } catch { /* ignore parse errors */ }
   }, [])
 
-  // Persist expenses to localStorage (only real data, not sample)
+  // Persist expenses
   useEffect(() => {
     if (!mounted || sampleMode) return
     try { localStorage.setItem(STORAGE_EXPENSES, JSON.stringify(expenses)) } catch { /* */ }
   }, [expenses, mounted, sampleMode])
 
-  // Persist budgets to localStorage
+  // Persist budgets
   useEffect(() => {
     if (!mounted || sampleMode) return
     try { localStorage.setItem(STORAGE_BUDGETS, JSON.stringify(budgets)) } catch { /* */ }
   }, [budgets, mounted, sampleMode])
 
+  // Persist balance
+  useEffect(() => {
+    if (!mounted || sampleMode) return
+    try { localStorage.setItem(STORAGE_BALANCE, preBalance.toString()) } catch { /* */ }
+  }, [preBalance, mounted, sampleMode])
+
   const handleSampleToggle = (on: boolean) => {
     if (on) {
-      realDataRef.current = { expenses, budgets }
+      realDataRef.current = { expenses, budgets, balance: preBalance }
       setExpenses(makeSampleExpenses())
       setBudgets(SAMPLE_BUDGETS)
+      setPreBalance(SAMPLE_BALANCE)
     } else {
       if (realDataRef.current) {
         setExpenses(realDataRef.current.expenses)
         setBudgets(realDataRef.current.budgets)
+        setPreBalance(realDataRef.current.balance)
       }
       realDataRef.current = null
     }
     setSampleMode(on)
   }
 
-  const todayFormatted = mounted
-    ? new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    : ''
-  const todayTotal = expenses.filter(e => e.date === getToday()).reduce((sum, e) => sum + e.amount, 0)
+  const handleSaveBalance = () => {
+    const parsed = parseFloat(balanceInput)
+    if (!isNaN(parsed) && parsed >= 0) {
+      setPreBalance(parsed)
+    }
+    setBalanceDialogOpen(false)
+    setBalanceInput('')
+  }
+
+  const handleOpenBalanceDialog = () => {
+    setBalanceInput(preBalance > 0 ? preBalance.toString() : '')
+    setBalanceDialogOpen(true)
+  }
+
+  const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const currentBalance = preBalance - allTimeTotal
+
+  const screenTitle = screen === 'dashboard' ? 'ExpenseTrack' : screen === 'reports' ? 'Reports' : screen === 'budgets' ? 'Budgets' : 'Insights'
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
-        {/* Sidebar - Desktop */}
-        <aside className="hidden md:flex flex-col w-60 border-r border-border bg-card/50 backdrop-blur-sm shrink-0 h-screen sticky top-0">
-          <div className="p-5 border-b border-border">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
-                <HiBanknotes className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-base font-semibold tracking-tight">ExpenseTrack</h1>
-                <p className="text-[10px] text-muted-foreground">Smart spending insights</p>
-              </div>
-            </div>
-          </div>
-          <nav className="flex-1 p-3 space-y-1">
-            {NAV_ITEMS.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setScreen(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${screen === item.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </nav>
-          {/* Agent Info */}
-          <div className="p-3 border-t border-border">
-            <div className="p-3 rounded-xl bg-secondary/50">
-              <div className="flex items-center gap-2 mb-1.5">
-                <HiInformationCircle className="w-3.5 h-3.5 text-muted-foreground" />
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">AI Agent</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full shrink-0 ${activeAgentId ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/30'}`} />
-                <p className="text-xs text-foreground truncate">Expense Insights</p>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                {activeAgentId ? 'Processing...' : 'Ready'}
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 flex flex-col min-h-screen md:min-h-0">
-          {/* Top Header */}
-          <header className="border-b border-border bg-card/50 backdrop-blur-sm px-4 md:px-6 py-3 flex items-center justify-between shrink-0 sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-              <div className="md:hidden flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-                  <HiBanknotes className="w-3.5 h-3.5 text-primary-foreground" />
+      {/* Outer wrapper - simulates phone on desktop */}
+      <div className="min-h-screen bg-gray-200 flex items-start justify-center">
+        {/* Phone container */}
+        <div className="w-full max-w-[430px] min-h-screen bg-background relative shadow-2xl">
+          {/* Android-style app bar */}
+          <header className="sticky top-0 z-50 bg-primary text-primary-foreground px-4 py-3 pt-[env(safe-area-inset-top,12px)]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <HiBanknotes className="w-4 h-4" />
                 </div>
-                <h1 className="text-sm font-semibold">ExpenseTrack</h1>
+                <h1 className="text-base font-semibold tracking-tight">{screenTitle}</h1>
               </div>
-              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-                <HiCalendarDays className="w-4 h-4" />
-                <span>{todayFormatted}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {mounted && todayTotal > 0 && (
-                <Badge variant="outline" className="text-xs font-medium border-primary/30 text-primary">
-                  <HiBanknotes className="w-3 h-3 mr-1" /> Today: {formatCurrency(todayTotal)}
-                </Badge>
-              )}
-              <div className="flex items-center gap-2">
-                <Label htmlFor="sample-toggle" className="text-xs text-muted-foreground cursor-pointer hidden sm:inline">Sample Data</Label>
-                <Switch id="sample-toggle" checked={sampleMode} onCheckedChange={handleSampleToggle} />
+              <div className="flex items-center gap-3">
+                {mounted && preBalance > 0 && (
+                  <Badge className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border-0 ${currentBalance >= 0 ? 'bg-emerald-400/20 text-emerald-100' : 'bg-red-400/20 text-red-100'}`}>
+                    <RiWallet3Line className="w-3 h-3 mr-1" />
+                    {formatCurrency(Math.abs(currentBalance))}
+                  </Badge>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="sample-toggle-mobile" className="text-[10px] text-primary-foreground/70 cursor-pointer">Sample</Label>
+                  <Switch id="sample-toggle-mobile" checked={sampleMode} onCheckedChange={handleSampleToggle} className="scale-75" />
+                </div>
               </div>
             </div>
           </header>
 
-          {/* Screen Content */}
-          <div className={`flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 ${screen === 'insights' ? 'flex flex-col' : ''}`}>
+          {/* Scrollable content area */}
+          <main className="pb-24 overflow-y-auto">
             {screen === 'dashboard' && (
-              <DashboardScreen expenses={expenses} setExpenses={setExpenses} budgets={budgets} sampleMode={sampleMode} />
+              <DashboardScreen
+                expenses={expenses}
+                setExpenses={setExpenses}
+                budgets={budgets}
+                sampleMode={sampleMode}
+                preBalance={preBalance}
+                onEditBalance={handleOpenBalanceDialog}
+              />
             )}
             {screen === 'reports' && (
-              <ReportsScreen expenses={expenses} budgets={budgets} activeAgentId={activeAgentId} setActiveAgentId={setActiveAgentId} />
+              <ReportsScreen
+                expenses={expenses}
+                budgets={budgets}
+                activeAgentId={activeAgentId}
+                setActiveAgentId={setActiveAgentId}
+                preBalance={preBalance}
+              />
             )}
             {screen === 'budgets' && (
               <BudgetsScreen budgets={budgets} setBudgets={setBudgets} expenses={expenses} />
             )}
             {screen === 'insights' && (
-              <InsightsScreen expenses={expenses} budgets={budgets} activeAgentId={activeAgentId} setActiveAgentId={setActiveAgentId} />
+              <InsightsScreen
+                expenses={expenses}
+                budgets={budgets}
+                activeAgentId={activeAgentId}
+                setActiveAgentId={setActiveAgentId}
+                preBalance={preBalance}
+              />
             )}
-          </div>
-        </main>
+          </main>
 
-        {/* Bottom Tab Bar - Mobile */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/80 backdrop-blur-xl border-t border-border z-50">
-          <div className="flex items-center justify-around py-2 px-1">
-            {NAV_ITEMS.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setScreen(item.id)}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${screen === item.id ? 'text-primary' : 'text-muted-foreground'}`}
-              >
-                {item.icon}
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </nav>
+          {/* Bottom navigation - Material Design style */}
+          <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-card border-t border-border z-50 pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="flex items-center justify-around py-1.5">
+              {NAV_ITEMS.map(item => {
+                const isActive = screen === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setScreen(item.id)}
+                    className="flex flex-col items-center gap-0.5 px-4 py-1 min-w-[64px] min-h-[48px] justify-center active:scale-90 transition-transform"
+                  >
+                    <div className={`px-4 py-1 rounded-2xl transition-colors duration-200 ${isActive ? 'bg-primary/15' : ''}`}>
+                      <div className={`transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {isActive ? item.iconActive : item.iconInactive}
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-medium transition-colors duration-200 ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                      {item.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </nav>
+        </div>
       </div>
+
+      {/* Balance Edit Dialog */}
+      <Dialog open={balanceDialogOpen} onOpenChange={setBalanceDialogOpen}>
+        <DialogContent className="max-w-[360px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <HiWallet className="w-5 h-5 text-primary" /> Set Balance
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label htmlFor="balance-input" className="text-sm text-muted-foreground">Starting balance amount</Label>
+              <div className="relative mt-2">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-base font-medium">$</span>
+                <Input
+                  id="balance-input"
+                  type="number"
+                  placeholder="0.00"
+                  value={balanceInput}
+                  onChange={(e) => setBalanceInput(e.target.value)}
+                  className="pl-8 h-12 text-lg rounded-xl"
+                  min="0"
+                  step="0.01"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBalance() }}
+                  autoFocus
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">This is your total budget. Expenses will be subtracted from this amount.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBalanceDialogOpen(false)}
+                className="flex-1 h-11 rounded-xl active:scale-95 transition-transform"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveBalance}
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground active:scale-95 transition-transform"
+              >
+                <HiCheck className="w-4 h-4 mr-1" /> Save
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </ErrorBoundary>
   )
 }
