@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   HiHome,
@@ -50,6 +50,7 @@ const AGENT_ID = '69a04fd17549c200e00d2fb9'
 const STORAGE_EXPENSES = 'expensetrack_expenses'
 const STORAGE_BUDGETS = 'expensetrack_budgets'
 const STORAGE_BALANCE = 'expensetrack_balance'
+const STORAGE_TOPUPS = 'expensetrack_topups'
 
 const CATEGORIES = ['Food', 'Household', 'Travel', 'Entertainment', 'Health', 'Other'] as const
 type Category = (typeof CATEGORIES)[number]
@@ -121,6 +122,14 @@ interface ChatMessage {
   timestamp: string
 }
 
+interface TopUp {
+  id: string
+  amount: number
+  note: string
+  date: string
+  createdAt: string
+}
+
 // ============ SAMPLE DATA ============
 function makeSampleExpenses(): Expense[] {
   const today = new Date().toISOString().split('T')[0]
@@ -147,7 +156,14 @@ const SAMPLE_BUDGETS: BudgetItem[] = [
   { category: 'Other', limit: 100 },
 ]
 
-const SAMPLE_BALANCE = 2000
+function makeSampleTopups(): TopUp[] {
+  const today = new Date().toISOString().split('T')[0]
+  const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString().split('T')[0]
+  return [
+    { id: 'st1', amount: 1500, note: 'Monthly salary', date: threeDaysAgo, createdAt: new Date(Date.now() - 3 * 86400000).toISOString() },
+    { id: 'st2', amount: 500, note: 'Freelance payment', date: today, createdAt: new Date().toISOString() },
+  ]
+}
 
 // ============ HELPERS ============
 function getCategoryIcon(category: string) {
@@ -266,81 +282,133 @@ const NAV_ITEMS: { id: Screen; label: string; iconActive: React.ReactNode; iconI
 
 // ============ BALANCE CARD ============
 function BalanceCard({
-  preBalance,
+  totalTopUps,
   totalSpent,
-  onEditBalance,
+  topUps,
+  onTopUp,
 }: {
-  preBalance: number
+  totalTopUps: number
   totalSpent: number
-  onEditBalance: () => void
+  topUps: TopUp[]
+  onTopUp: () => void
 }) {
-  const currentBalance = preBalance - totalSpent
+  const currentBalance = totalTopUps - totalSpent
   const isPositive = currentBalance >= 0
-  const hasBalance = preBalance > 0
+  const hasBalance = totalTopUps > 0
+  const [showHistory, setShowHistory] = useState(false)
 
   return (
-    <Card className="relative overflow-hidden border-0 shadow-lg">
-      <div className={`absolute inset-0 ${isPositive ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700' : 'bg-gradient-to-br from-red-500 via-red-600 to-rose-700'}`} />
-      <CardContent className="relative p-5">
-        <div className="flex items-start justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
-              <HiWallet className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-white/70 font-medium">Current Balance</p>
-              {hasBalance && (
-                <p className="text-[10px] text-white/50">Pre-balance: {formatCurrency(preBalance)}</p>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={onEditBalance}
-            className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center active:scale-90 transition-transform"
-          >
-            <HiPencilSquare className="w-4 h-4 text-white" />
-          </button>
-        </div>
-
-        {hasBalance ? (
-          <>
-            <p className={`text-3xl font-bold mt-2 ${isPositive ? 'text-white' : 'text-white'}`}>
-              {isPositive ? '' : '-'}{formatCurrency(Math.abs(currentBalance))}
-            </p>
-            <div className="flex items-center gap-4 mt-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-                  <HiMinus className="w-3 h-3 text-white" />
-                </div>
-                <div>
-                  <p className="text-[10px] text-white/60">Spent</p>
-                  <p className="text-xs font-semibold text-white">{formatCurrency(totalSpent)}</p>
-                </div>
+    <div className="space-y-2">
+      <Card className="relative overflow-hidden border-0 shadow-lg">
+        <div className={`absolute inset-0 ${isPositive ? 'bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700' : 'bg-gradient-to-br from-red-500 via-red-600 to-rose-700'}`} />
+        <CardContent className="relative p-5">
+          <div className="flex items-start justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                <HiWallet className="w-5 h-5 text-white" />
               </div>
-              {preBalance > 0 && (
-                <div className="flex-1">
-                  <div className="flex justify-between text-[10px] text-white/60 mb-1">
-                    <span>Budget used</span>
-                    <span>{Math.min((totalSpent / preBalance) * 100, 100).toFixed(0)}%</span>
+              <div>
+                <p className="text-xs text-white/70 font-medium">Current Balance</p>
+                {hasBalance && (
+                  <p className="text-[10px] text-white/50">Total added: {formatCurrency(totalTopUps)}</p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onTopUp}
+              className="h-9 px-3 rounded-xl bg-white/20 flex items-center justify-center gap-1.5 active:scale-90 transition-transform"
+            >
+              <HiPlus className="w-4 h-4 text-white" />
+              <span className="text-xs font-medium text-white">Top Up</span>
+            </button>
+          </div>
+
+          {hasBalance ? (
+            <>
+              <p className="text-3xl font-bold mt-2 text-white">
+                {isPositive ? '' : '-'}{formatCurrency(Math.abs(currentBalance))}
+              </p>
+              <div className="flex items-center gap-4 mt-3">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    <HiPlus className="w-3 h-3 text-white" />
                   </div>
-                  <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-white/70 transition-all duration-500"
-                      style={{ width: `${Math.min((totalSpent / preBalance) * 100, 100)}%` }}
-                    />
+                  <div>
+                    <p className="text-[10px] text-white/60">Added</p>
+                    <p className="text-xs font-semibold text-white">{formatCurrency(totalTopUps)}</p>
                   </div>
                 </div>
-              )}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
+                    <HiMinus className="w-3 h-3 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/60">Spent</p>
+                    <p className="text-xs font-semibold text-white">{formatCurrency(totalSpent)}</p>
+                  </div>
+                </div>
+                {totalTopUps > 0 && (
+                  <div className="flex-1">
+                    <div className="flex justify-between text-[10px] text-white/60 mb-1">
+                      <span>Used</span>
+                      <span>{Math.min((totalSpent / totalTopUps) * 100, 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-white/70 transition-all duration-500"
+                        style={{ width: `${Math.min((totalSpent / totalTopUps) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2">
+              <p className="text-lg font-semibold text-white/80">Add your balance</p>
+              <p className="text-xs text-white/50 mt-0.5">Tap Top Up to add funds to your wallet</p>
             </div>
-          </>
-        ) : (
-          <div className="mt-2">
-            <p className="text-lg font-semibold text-white/80">Set your balance</p>
-            <p className="text-xs text-white/50 mt-0.5">Tap the edit button to set a starting balance</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Top-up history toggle */}
+      {topUps.length > 0 && (
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between px-4 py-2 rounded-xl bg-secondary/50 active:scale-[0.98] transition-transform"
+        >
+          <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+            <HiBanknotes className="w-3.5 h-3.5" /> Top-up History ({topUps.length})
+          </span>
+          <HiArrowTrendingUp className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+        </button>
+      )}
+
+      {/* Top-up history list */}
+      {showHistory && topUps.length > 0 && (
+        <Card className="border-0 shadow-md rounded-2xl">
+          <CardContent className="p-3">
+            <ScrollArea className="max-h-[160px]">
+              <div className="space-y-2">
+                {topUps.map(tu => (
+                  <div key={tu.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-emerald-50">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                      <HiPlus className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{tu.note || 'Top Up'}</p>
+                      <p className="text-[10px] text-muted-foreground">{tu.date}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-emerald-600">+{formatCurrency(tu.amount)}</p>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   )
 }
 
@@ -362,14 +430,15 @@ function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: s
 
 // ============ DASHBOARD SCREEN ============
 function DashboardScreen({
-  expenses, setExpenses, budgets, sampleMode, preBalance, onEditBalance
+  expenses, setExpenses, budgets, sampleMode, totalTopUps, topUps, onTopUp
 }: {
   expenses: Expense[]
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>
   budgets: BudgetItem[]
   sampleMode: boolean
-  preBalance: number
-  onEditBalance: () => void
+  totalTopUps: number
+  topUps: TopUp[]
+  onTopUp: () => void
 }) {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState<string>('')
@@ -425,7 +494,7 @@ function DashboardScreen({
   return (
     <div className="space-y-4 px-4 pt-4">
       {/* Balance Hero Card */}
-      <BalanceCard preBalance={preBalance} totalSpent={allTimeTotal} onEditBalance={onEditBalance} />
+      <BalanceCard totalTopUps={totalTopUps} totalSpent={allTimeTotal} topUps={topUps} onTopUp={onTopUp} />
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 gap-3">
@@ -598,13 +667,13 @@ function DashboardScreen({
 
 // ============ REPORTS SCREEN ============
 function ReportsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId, preBalance
+  expenses, budgets, activeAgentId, setActiveAgentId, totalTopUps
 }: {
   expenses: Expense[]
   budgets: BudgetItem[]
   activeAgentId: string | null
   setActiveAgentId: (id: string | null) => void
-  preBalance: number
+  totalTopUps: number
 }) {
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily')
   const [report, setReport] = useState<AgentReport | null>(null)
@@ -612,7 +681,7 @@ function ReportsScreen({
   const [error, setError] = useState<string | null>(null)
 
   const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const currentBalance = preBalance - allTimeTotal
+  const currentBalance = totalTopUps - allTimeTotal
 
   const getDateRange = useCallback(() => {
     const now = new Date()
@@ -640,8 +709,8 @@ function ReportsScreen({
 
     const budgetLines = budgets.map(b => `  - ${b.category}: $${b.limit} limit`).join('\n')
 
-    const balanceContext = preBalance > 0
-      ? `\nBALANCE: Pre-balance $${preBalance.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
+    const balanceContext = totalTopUps > 0
+      ? `\nBALANCE: Total top-ups $${totalTopUps.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
       : ''
 
     const message = `Here is my expense data for analysis:
@@ -1039,13 +1108,13 @@ function BudgetsScreen({
 
 // ============ INSIGHTS CHAT SCREEN ============
 function InsightsScreen({
-  expenses, budgets, activeAgentId, setActiveAgentId, preBalance
+  expenses, budgets, activeAgentId, setActiveAgentId, totalTopUps
 }: {
   expenses: Expense[]
   budgets: BudgetItem[]
   activeAgentId: string | null
   setActiveAgentId: (id: string | null) => void
-  preBalance: number
+  totalTopUps: number
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -1053,7 +1122,7 @@ function InsightsScreen({
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const currentBalance = preBalance - allTimeTotal
+  const currentBalance = totalTopUps - allTimeTotal
 
   const quickQuestions = [
     "This week's summary",
@@ -1073,11 +1142,11 @@ function InsightsScreen({
       ? expenses.slice(0, 100).map(e => `  - ${e.date} | ${e.category} | $${e.amount.toFixed(2)} | ${e.note || 'No note'}`).join('\n')
       : '  No expenses recorded.'
     const budgetLines = budgets.map(b => `  - ${b.category}: $${b.limit} limit`).join('\n')
-    const balanceInfo = preBalance > 0
-      ? `\n\nBALANCE: Pre-balance $${preBalance.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
+    const balanceInfo = totalTopUps > 0
+      ? `\n\nBALANCE: Total top-ups $${totalTopUps.toFixed(2)}, Current balance $${currentBalance.toFixed(2)}, Total spent $${allTimeTotal.toFixed(2)}`
       : ''
     return `EXPENSES:\n${expenseLines}\n\nBUDGETS:\n${budgetLines}${balanceInfo}`
-  }, [expenses, budgets, preBalance, currentBalance, allTimeTotal])
+  }, [expenses, budgets, totalTopUps, currentBalance, allTimeTotal])
 
   const handleSend = async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -1235,14 +1304,15 @@ export default function Page() {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [budgets, setBudgets] = useState<BudgetItem[]>(CATEGORIES.map(c => ({ category: c, limit: 0 })))
-  const [preBalance, setPreBalance] = useState<number>(0)
+  const [topUps, setTopUps] = useState<TopUp[]>([])
   const [sampleMode, setSampleMode] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
-  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
-  const [balanceInput, setBalanceInput] = useState('')
+  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
+  const [topUpAmount, setTopUpAmount] = useState('')
+  const [topUpNote, setTopUpNote] = useState('')
 
-  const realDataRef = useRef<{ expenses: Expense[]; budgets: BudgetItem[]; balance: number } | null>(null)
+  const realDataRef = useRef<{ expenses: Expense[]; budgets: BudgetItem[]; topUps: TopUp[] } | null>(null)
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -1258,10 +1328,20 @@ export default function Page() {
         const parsed = JSON.parse(storedBudgets)
         if (Array.isArray(parsed)) setBudgets(parsed)
       }
-      const storedBalance = localStorage.getItem(STORAGE_BALANCE)
-      if (storedBalance) {
-        const parsed = parseFloat(storedBalance)
-        if (!isNaN(parsed)) setPreBalance(parsed)
+      const storedTopUps = localStorage.getItem(STORAGE_TOPUPS)
+      if (storedTopUps) {
+        const parsed = JSON.parse(storedTopUps)
+        if (Array.isArray(parsed)) setTopUps(parsed)
+      }
+      // Migrate old single balance to top-up entry
+      const oldBalance = localStorage.getItem(STORAGE_BALANCE)
+      if (oldBalance && !localStorage.getItem(STORAGE_TOPUPS)) {
+        const bal = parseFloat(oldBalance)
+        if (!isNaN(bal) && bal > 0) {
+          const migrated: TopUp = { id: genId(), amount: bal, note: 'Initial balance', date: getToday(), createdAt: new Date().toISOString() }
+          setTopUps([migrated])
+          localStorage.removeItem(STORAGE_BALANCE)
+        }
       }
     } catch { /* ignore parse errors */ }
   }, [])
@@ -1278,45 +1358,55 @@ export default function Page() {
     try { localStorage.setItem(STORAGE_BUDGETS, JSON.stringify(budgets)) } catch { /* */ }
   }, [budgets, mounted, sampleMode])
 
-  // Persist balance
+  // Persist top-ups
   useEffect(() => {
     if (!mounted || sampleMode) return
-    try { localStorage.setItem(STORAGE_BALANCE, preBalance.toString()) } catch { /* */ }
-  }, [preBalance, mounted, sampleMode])
+    try { localStorage.setItem(STORAGE_TOPUPS, JSON.stringify(topUps)) } catch { /* */ }
+  }, [topUps, mounted, sampleMode])
 
   const handleSampleToggle = (on: boolean) => {
     if (on) {
-      realDataRef.current = { expenses, budgets, balance: preBalance }
+      realDataRef.current = { expenses, budgets, topUps }
       setExpenses(makeSampleExpenses())
       setBudgets(SAMPLE_BUDGETS)
-      setPreBalance(SAMPLE_BALANCE)
+      setTopUps(makeSampleTopups())
     } else {
       if (realDataRef.current) {
         setExpenses(realDataRef.current.expenses)
         setBudgets(realDataRef.current.budgets)
-        setPreBalance(realDataRef.current.balance)
+        setTopUps(realDataRef.current.topUps)
       }
       realDataRef.current = null
     }
     setSampleMode(on)
   }
 
-  const handleSaveBalance = () => {
-    const parsed = parseFloat(balanceInput)
-    if (!isNaN(parsed) && parsed >= 0) {
-      setPreBalance(parsed)
+  const handleTopUp = () => {
+    const parsed = parseFloat(topUpAmount)
+    if (!isNaN(parsed) && parsed > 0) {
+      const newTopUp: TopUp = {
+        id: genId(),
+        amount: parsed,
+        note: topUpNote.trim() || 'Top Up',
+        date: getToday(),
+        createdAt: new Date().toISOString(),
+      }
+      setTopUps(prev => [newTopUp, ...prev])
     }
-    setBalanceDialogOpen(false)
-    setBalanceInput('')
+    setTopUpDialogOpen(false)
+    setTopUpAmount('')
+    setTopUpNote('')
   }
 
-  const handleOpenBalanceDialog = () => {
-    setBalanceInput(preBalance > 0 ? preBalance.toString() : '')
-    setBalanceDialogOpen(true)
+  const handleOpenTopUpDialog = () => {
+    setTopUpAmount('')
+    setTopUpNote('')
+    setTopUpDialogOpen(true)
   }
 
+  const totalTopUps = topUps.reduce((sum, t) => sum + t.amount, 0)
   const allTimeTotal = expenses.reduce((sum, e) => sum + e.amount, 0)
-  const currentBalance = preBalance - allTimeTotal
+  const currentBalance = totalTopUps - allTimeTotal
 
   const screenTitle = screen === 'dashboard' ? 'ExpenseTrack' : screen === 'reports' ? 'Reports' : screen === 'budgets' ? 'Budgets' : 'Insights'
 
@@ -1336,7 +1426,7 @@ export default function Page() {
                 <h1 className="text-base font-semibold tracking-tight">{screenTitle}</h1>
               </div>
               <div className="flex items-center gap-3">
-                {mounted && preBalance > 0 && (
+                {mounted && totalTopUps > 0 && (
                   <Badge className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg border-0 ${currentBalance >= 0 ? 'bg-emerald-400/20 text-emerald-100' : 'bg-red-400/20 text-red-100'}`}>
                     <RiWallet3Line className="w-3 h-3 mr-1" />
                     {formatCurrency(Math.abs(currentBalance))}
@@ -1358,8 +1448,9 @@ export default function Page() {
                 setExpenses={setExpenses}
                 budgets={budgets}
                 sampleMode={sampleMode}
-                preBalance={preBalance}
-                onEditBalance={handleOpenBalanceDialog}
+                totalTopUps={totalTopUps}
+                topUps={topUps}
+                onTopUp={handleOpenTopUpDialog}
               />
             )}
             {screen === 'reports' && (
@@ -1368,7 +1459,7 @@ export default function Page() {
                 budgets={budgets}
                 activeAgentId={activeAgentId}
                 setActiveAgentId={setActiveAgentId}
-                preBalance={preBalance}
+                totalTopUps={totalTopUps}
               />
             )}
             {screen === 'budgets' && (
@@ -1380,7 +1471,7 @@ export default function Page() {
                 budgets={budgets}
                 activeAgentId={activeAgentId}
                 setActiveAgentId={setActiveAgentId}
-                preBalance={preBalance}
+                totalTopUps={totalTopUps}
               />
             )}
           </main>
@@ -1412,47 +1503,59 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Balance Edit Dialog */}
-      <Dialog open={balanceDialogOpen} onOpenChange={setBalanceDialogOpen}>
+      {/* Top Up Dialog */}
+      <Dialog open={topUpDialogOpen} onOpenChange={setTopUpDialogOpen}>
         <DialogContent className="max-w-[360px] rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <HiWallet className="w-5 h-5 text-primary" /> Set Balance
+              <HiPlus className="w-5 h-5 text-primary" /> Top Up Balance
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div>
-              <Label htmlFor="balance-input" className="text-sm text-muted-foreground">Starting balance amount</Label>
+              <Label htmlFor="topup-amount" className="text-sm text-muted-foreground">Amount to add</Label>
               <div className="relative mt-2">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-base font-medium">$</span>
                 <Input
-                  id="balance-input"
+                  id="topup-amount"
                   type="number"
                   placeholder="0.00"
-                  value={balanceInput}
-                  onChange={(e) => setBalanceInput(e.target.value)}
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
                   className="pl-8 h-12 text-lg rounded-xl"
                   min="0"
                   step="0.01"
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveBalance() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleTopUp() }}
                   autoFocus
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground mt-2">This is your total budget. Expenses will be subtracted from this amount.</p>
             </div>
+            <div>
+              <Label htmlFor="topup-note" className="text-sm text-muted-foreground">Note (optional)</Label>
+              <Input
+                id="topup-note"
+                placeholder="e.g., Salary, Freelance, Gift..."
+                value={topUpNote}
+                onChange={(e) => setTopUpNote(e.target.value)}
+                className="h-11 rounded-xl mt-2"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleTopUp() }}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">This amount will be added to your current balance of {formatCurrency(Math.max(currentBalance, 0))}.</p>
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => setBalanceDialogOpen(false)}
+                onClick={() => setTopUpDialogOpen(false)}
                 className="flex-1 h-11 rounded-xl active:scale-95 transition-transform"
               >
                 Cancel
               </Button>
               <Button
-                onClick={handleSaveBalance}
+                onClick={handleTopUp}
+                disabled={!topUpAmount || parseFloat(topUpAmount) <= 0}
                 className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground active:scale-95 transition-transform"
               >
-                <HiCheck className="w-4 h-4 mr-1" /> Save
+                <HiPlus className="w-4 h-4 mr-1" /> Add Funds
               </Button>
             </div>
           </div>
