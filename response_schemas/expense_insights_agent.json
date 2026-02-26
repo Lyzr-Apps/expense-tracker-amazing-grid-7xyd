@@ -1,0 +1,100 @@
+{
+  "name": "AgentResponse",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "report_type": {
+        "type": "string",
+        "description": "Type of report: daily, weekly, monthly, or chat_response"
+      },
+      "summary": {
+        "type": "string",
+        "description": "Brief overall summary of spending analysis"
+      },
+      "total_spent": {
+        "type": "number",
+        "description": "Total amount spent in the period"
+      },
+      "category_breakdown": {
+        "type": "array",
+        "description": "Breakdown by category",
+        "items": {
+          "type": "object",
+          "properties": {
+            "category": { "type": "string" },
+            "total": { "type": "number" },
+            "percentage": { "type": "number" },
+            "item_count": { "type": "number" },
+            "is_over_budget": { "type": "boolean" },
+            "budget_limit": { "type": "number" },
+            "budget_utilization": { "type": "number" }
+          },
+          "required": ["category", "total", "percentage", "item_count", "is_over_budget", "budget_limit", "budget_utilization"],
+          "additionalProperties": false
+        }
+      },
+      "top_expenses": {
+        "type": "array",
+        "description": "Top 3-5 highest individual expenses",
+        "items": {
+          "type": "object",
+          "properties": {
+            "category": { "type": "string" },
+            "amount": { "type": "number" },
+            "note": { "type": "string" },
+            "date": { "type": "string" }
+          },
+          "required": ["category", "amount", "note", "date"],
+          "additionalProperties": false
+        }
+      },
+      "trends": {
+        "type": "array",
+        "description": "Spending trends and comparisons",
+        "items": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "change_percentage": { "type": "number" },
+            "direction": { "type": "string" }
+          },
+          "required": ["description", "change_percentage", "direction"],
+          "additionalProperties": false
+        }
+      },
+      "budget_alerts": {
+        "type": "array",
+        "description": "Categories that are over or near budget",
+        "items": {
+          "type": "object",
+          "properties": {
+            "category": { "type": "string" },
+            "message": { "type": "string" },
+            "severity": { "type": "string" }
+          },
+          "required": ["category", "message", "severity"],
+          "additionalProperties": false
+        }
+      },
+      "insights": {
+        "type": "array",
+        "description": "Actionable insights and recommendations",
+        "items": {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" }
+          },
+          "required": ["text"],
+          "additionalProperties": false
+        }
+      },
+      "chat_answer": {
+        "type": "string",
+        "description": "Direct answer for free-form chat questions"
+      }
+    },
+    "required": ["report_type", "summary", "total_spent", "category_breakdown", "top_expenses", "trends", "budget_alerts", "insights", "chat_answer"],
+    "additionalProperties": false
+  }
+}

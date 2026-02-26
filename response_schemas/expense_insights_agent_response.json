@@ -1,0 +1,96 @@
+{
+  "agent_name": "Expense Insights Agent",
+  "agent_id": "69a04fd17549c200e00d2fb9",
+  "description": "Analyzes user expense data to generate daily category-wise reports, identify spending trends, flag budget overages, highlight top expenses, and produce weekly/monthly summaries. Responds to free-form spending questions.",
+  "agent_type": "json",
+  "accessor": "result",
+  "auto_generated": true,
+  "response_schema": {
+    "report_type": "string",
+    "summary": "string",
+    "total_spent": "number",
+    "category_breakdown": [
+      {
+        "category": "string",
+        "total": "number",
+        "percentage": "number",
+        "item_count": "number",
+        "is_over_budget": "boolean",
+        "budget_limit": "number",
+        "budget_utilization": "number"
+      }
+    ],
+    "top_expenses": [
+      {
+        "category": "string",
+        "amount": "number",
+        "note": "string",
+        "date": "string"
+      }
+    ],
+    "trends": [
+      {
+        "description": "string",
+        "change_percentage": "number",
+        "direction": "string"
+      }
+    ],
+    "budget_alerts": [
+      {
+        "category": "string",
+        "message": "string",
+        "severity": "string"
+      }
+    ],
+    "insights": [
+      {
+        "text": "string"
+      }
+    ],
+    "chat_answer": "string"
+  },
+  "example_response": {
+    "report_type": "Type of report: daily, weekly, monthly, or chat_response",
+    "summary": "Brief overall summary of spending analysis",
+    "total_spent": 0,
+    "category_breakdown": [
+      {
+        "category": "sample string",
+        "total": 0,
+        "percentage": 0,
+        "item_count": 0,
+        "is_over_budget": false,
+        "budget_limit": 0,
+        "budget_utilization": 0
+      }
+    ],
+    "top_expenses": [
+      {
+        "category": "sample string",
+        "amount": 0,
+        "note": "sample string",
+        "date": "sample string"
+      }
+    ],
+    "trends": [
+      {
+        "description": "sample string",
+        "change_percentage": 0,
+        "direction": "sample string"
+      }
+    ],
+    "budget_alerts": [
+      {
+        "category": "sample string",
+        "message": "sample string",
+        "severity": "sample string"
+      }
+    ],
+    "insights": [
+      {
+        "text": "sample string"
+      }
+    ],
+    "chat_answer": "Direct answer for free-form chat questions"
+  }
+}

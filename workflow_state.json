@@ -1,0 +1,11 @@
+{
+  "agents": {
+    "expense_insights_agent": {
+      "agent_id": "69a04fd17549c200e00d2fb9",
+      "name": "Expense Insights Agent",
+      "type": "single",
+      "model": "gpt-4.1",
+      "provider": "openai"
+    }
+  }
+}
